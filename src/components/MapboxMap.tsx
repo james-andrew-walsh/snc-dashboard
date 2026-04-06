@@ -170,12 +170,15 @@ export function MapboxMap({ locations, activeDispatches, equipment, jobs, employ
     const locMap = new Map(locations.map((l) => [l.id, l]))
     const empMap = new Map(employees.map((e) => [e.id, e]))
 
+    // Step 1: Group equipment by location
+    const locationGroups = new Map<string, Array<{ equip: Equipment; loc: Location; operator: Employee | undefined; dispatch: DispatchEvent }>>()
+
     activeDispatches.forEach((dispatch) => {
       const equip = equipMap.get(dispatch.equipmentId)
       if (!equip) return
 
       // Resolve location: either via Job → locationId, or directly via dispatch.locationId
-      let loc = null
+      let loc: Location | null = null
       if (dispatch.jobId) {
         const job = jobMap.get(dispatch.jobId)
         if (job?.locationId) loc = locMap.get(job.locationId) ?? null
@@ -185,33 +188,57 @@ export function MapboxMap({ locations, activeDispatches, equipment, jobs, employ
       if (!loc || !loc.latitude || !loc.longitude) return
 
       const operator = empMap.get(dispatch.operatorId)
-      const color = STATUS_COLORS[equip.status] ?? '#6b7280'
-
-      // Create colored marker element
-      const el = document.createElement('div')
-      el.style.width = '14px'
-      el.style.height = '14px'
-      el.style.borderRadius = '50%'
-      el.style.backgroundColor = color
-      el.style.border = '2px solid white'
-      el.style.cursor = 'pointer'
-      el.style.boxShadow = '0 0 4px rgba(0,0,0,0.5)'
-
-      const popup = new mapboxgl.Popup({ offset: 12, closeButton: false }).setHTML(
-        `<div style="color:#1e293b;font-size:13px;line-height:1.4">
-          <strong>${equip.make} ${equip.model}</strong> (${equip.code})<br/>
-          Status: <span style="color:${color};font-weight:600">${equip.status}</span><br/>
-          ${operator ? `Operator: ${operator.firstName} ${operator.lastName}` : 'Operator: —'}
-        </div>`
-      )
-
-      const marker = new mapboxgl.Marker({ element: el })
-        .setLngLat([loc.longitude!, loc.latitude!])
-        .setPopup(popup)
-        .addTo(map)
-
-      markersRef.current.push(marker)
+      const group = locationGroups.get(loc.id) ?? []
+      group.push({ equip, loc, operator, dispatch })
+      locationGroups.set(loc.id, group)
     })
+
+    // Step 2: For each location group, calculate grid positions and place markers
+    const SPACING = 0.0003 // ~30 meters per cell
+    const COLS = 4
+
+    for (const [, items] of locationGroups) {
+      const count = items.length
+      const totalCols = Math.min(count, COLS)
+      const totalRows = Math.ceil(count / COLS)
+      const startLng = items[0].loc.longitude! - (totalCols - 1) * SPACING / 2
+      const startLat = items[0].loc.latitude! + (totalRows - 1) * SPACING / 2
+
+      items.forEach((item, index) => {
+        const col = index % COLS
+        const row = Math.floor(index / COLS)
+        const lng = startLng + col * SPACING
+        const lat = startLat - row * SPACING
+
+        const color = STATUS_COLORS[item.equip.status] ?? '#6b7280'
+
+        // Create colored marker element
+        const el = document.createElement('div')
+        el.style.width = '14px'
+        el.style.height = '14px'
+        el.style.borderRadius = '50%'
+        el.style.backgroundColor = color
+        el.style.border = '2px solid white'
+        el.style.cursor = 'pointer'
+        el.style.boxShadow = '0 0 4px rgba(0,0,0,0.5)'
+
+        const popup = new mapboxgl.Popup({ offset: 12, closeButton: false }).setHTML(
+          `<div style="color:#1e293b;font-size:13px;line-height:1.4">
+            <strong>${item.equip.make} ${item.equip.model}</strong> (${item.equip.code})<br/>
+            Status: <span style="color:${color};font-weight:600">${item.equip.status}</span><br/>
+            Location: ${item.loc.code}<br/>
+            ${item.operator ? `Operator: ${item.operator.firstName} ${item.operator.lastName}` : 'Operator: —'}
+          </div>`
+        )
+
+        const marker = new mapboxgl.Marker({ element: el })
+          .setLngLat([lng, lat])
+          .setPopup(popup)
+          .addTo(map)
+
+        markersRef.current.push(marker)
+      })
+    }
   }, [isLoaded, locations, activeDispatches, equipment, jobs, employees])
 
   return <div ref={containerRef} className="w-full h-full" />
