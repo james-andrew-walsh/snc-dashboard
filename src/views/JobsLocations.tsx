@@ -1,10 +1,16 @@
+import { useState } from 'react'
 import { useSupabaseQuery } from '../hooks/useSupabaseQuery'
+import { useRealtime } from '../hooks/useRealtime'
 import { DataTable } from '../components/DataTable'
 import type { Job, Location } from '../lib/types'
 
 export function JobsLocations() {
-  const { data: jobs, loading: jobsLoading, error: jobsError } = useSupabaseQuery<Job>('Job')
-  const { data: locations, loading: locsLoading, error: locsError } = useSupabaseQuery<Location>('Location')
+  const { data: jobs, setData: setJobs, loading: jobsLoading, error: jobsError } = useSupabaseQuery<Job>('Job')
+  const { data: locations, setData: setLocations, loading: locsLoading, error: locsError } = useSupabaseQuery<Location>('Location')
+  const [flashedJobIds, setFlashedJobIds] = useState<Set<string>>(new Set())
+  const [flashedLocIds, setFlashedLocIds] = useState<Set<string>>(new Set())
+  useRealtime('Job', jobs, setJobs, flashedJobIds, setFlashedJobIds)
+  useRealtime('Location', locations, setLocations, flashedLocIds, setFlashedLocIds)
 
   return (
     <div className="space-y-8">
@@ -24,6 +30,7 @@ export function JobsLocations() {
           data={jobs}
           loading={jobsLoading}
           error={jobsError}
+          flashedIds={flashedJobIds}
         />
       </div>
 
@@ -41,6 +48,7 @@ export function JobsLocations() {
           data={locations}
           loading={locsLoading}
           error={locsError}
+          flashedIds={flashedLocIds}
         />
       </div>
     </div>

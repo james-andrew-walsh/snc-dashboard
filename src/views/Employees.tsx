@@ -1,9 +1,14 @@
+import { useState } from 'react'
 import { useSupabaseQuery } from '../hooks/useSupabaseQuery'
+import { useRealtime } from '../hooks/useRealtime'
 import { DataTable } from '../components/DataTable'
 import type { Employee } from '../lib/types'
 
 export function Employees() {
-  const { data, loading, error } = useSupabaseQuery<Employee>('Employee')
+  const { data, setData, loading, error } = useSupabaseQuery<Employee>('Employee')
+  const [flashedIds, setFlashedIds] = useState<Set<string>>(new Set())
+
+  useRealtime('Employee', data, setData, flashedIds, setFlashedIds)
 
   return (
     <div className="space-y-6">
@@ -25,6 +30,7 @@ export function Employees() {
         data={data}
         loading={loading}
         error={error}
+        flashedIds={flashedIds}
       />
     </div>
   )
