@@ -6,6 +6,7 @@ import { BusinessUnits } from './views/BusinessUnits'
 import { JobsLocations } from './views/JobsLocations'
 import { EquipmentView } from './views/Equipment'
 import { Employees } from './views/Employees'
+import { CrewAssignments } from './views/CrewAssignments'
 import { DispatchSchedule } from './views/DispatchSchedule'
 
 const views: Record<ViewId, React.FC> = {
@@ -14,6 +15,7 @@ const views: Record<ViewId, React.FC> = {
   'jobs-locations': JobsLocations,
   'equipment': EquipmentView,
   'employees': Employees,
+  'crew-assignments': CrewAssignments,
   'dispatch': DispatchSchedule,
 }
 

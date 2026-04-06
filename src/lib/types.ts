@@ -24,6 +24,7 @@ export interface Job {
   businessUnitId: string
   code: string
   description: string
+  locationId: string | null
 }
 
 export interface Location {
@@ -47,8 +48,20 @@ export interface DispatchEvent {
   equipmentId: string
   jobId: string
   locationId: string
-  driverId: string
+  operatorId: string
   startDate: string
   endDate: string
   notes: string
+}
+
+export interface CrewAssignment {
+  id: string
+  jobId: string
+  employeeId: string
+  role: string
+  startDate: string
+  endDate: string | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
 }

@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 
-export type ViewId = 'overview' | 'business-units' | 'jobs-locations' | 'equipment' | 'employees' | 'dispatch'
+export type ViewId = 'overview' | 'business-units' | 'jobs-locations' | 'equipment' | 'employees' | 'crew-assignments' | 'dispatch'
 
 interface NavItem {
   id: ViewId
@@ -14,6 +14,7 @@ const navItems: NavItem[] = [
   { id: 'jobs-locations', label: 'Jobs & Locations', icon: <JobsIcon /> },
   { id: 'equipment', label: 'Equipment', icon: <EquipmentIcon /> },
   { id: 'employees', label: 'Employees', icon: <EmployeesIcon /> },
+  { id: 'crew-assignments', label: 'Crew Assignments', icon: <CrewIcon /> },
   { id: 'dispatch', label: 'Dispatch Schedule', icon: <DispatchIcon /> },
 ]
 
@@ -125,6 +126,14 @@ function EmployeesIcon() {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
       <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+    </svg>
+  )
+}
+
+function CrewIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+      <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v1h8v-1zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-1a5.97 5.97 0 00-.75-2.906A3.005 3.005 0 0119 17v1h-3zM4.75 14.094A5.97 5.97 0 004 17v1H1v-1a3 3 0 013.75-2.906z" />
     </svg>
   )
 }

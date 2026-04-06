@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useSupabaseQuery } from '../hooks/useSupabaseQuery'
 import { useRealtime } from '../hooks/useRealtime'
 import { DataTable } from '../components/DataTable'
@@ -11,6 +11,14 @@ export function JobsLocations() {
   const [flashedLocIds, setFlashedLocIds] = useState<Set<string>>(new Set())
   useRealtime('Job', jobs, setJobs, flashedJobIds, setFlashedJobIds)
   useRealtime('Location', locations, setLocations, flashedLocIds, setFlashedLocIds)
+
+  const locationMap = useMemo(() => new Map(locations.map(l => [l.id, l])), [locations])
+
+  function resolveLocation(row: Job): string {
+    if (!row.locationId) return '—'
+    const loc = locationMap.get(row.locationId)
+    return loc ? `${loc.code} — ${loc.description}` : row.locationId
+  }
 
   return (
     <div className="space-y-8">
@@ -26,6 +34,11 @@ export function JobsLocations() {
           columns={[
             { key: 'code', header: 'Code' },
             { key: 'description', header: 'Description' },
+            {
+              key: 'locationId',
+              header: 'Location',
+              render: (row) => resolveLocation(row),
+            },
           ]}
           data={jobs}
           loading={jobsLoading}
