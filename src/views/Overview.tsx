@@ -66,7 +66,7 @@ export function Overview() {
 
   // Realtime activity feed
   useEffect(() => {
-    const tables = ['Equipment', 'Job', 'DispatchEvent', 'Employee'] as const
+    const tables = ['Equipment', 'Job', 'DispatchEvent', 'Employee', 'Location'] as const
     const channels = tables.map(table =>
       supabase
         .channel(`overview-${table}`)
@@ -95,6 +95,33 @@ export function Overview() {
             if (table === 'DispatchEvent') {
               if (payload.eventType === 'INSERT') setDispatchCount(c => c + 1)
               if (payload.eventType === 'DELETE') setDispatchCount(c => c - 1)
+            }
+
+            // Update map data arrays
+            if (table === 'DispatchEvent') {
+              if (payload.eventType === 'INSERT') setDispatches(prev => [...prev, payload.new as DispatchEvent])
+              if (payload.eventType === 'UPDATE') setDispatches(prev => prev.map(d => d.id === (payload.new as DispatchEvent).id ? payload.new as DispatchEvent : d))
+              if (payload.eventType === 'DELETE') setDispatches(prev => prev.filter(d => d.id !== (payload.old as {id: string}).id))
+            }
+            if (table === 'Equipment') {
+              if (payload.eventType === 'INSERT') setEquipment(prev => [...prev, payload.new as Equipment])
+              if (payload.eventType === 'UPDATE') setEquipment(prev => prev.map(e => e.id === (payload.new as Equipment).id ? payload.new as Equipment : e))
+              if (payload.eventType === 'DELETE') setEquipment(prev => prev.filter(e => e.id !== (payload.old as {id: string}).id))
+            }
+            if (table === 'Job') {
+              if (payload.eventType === 'INSERT') setJobs(prev => [...prev, payload.new as Job])
+              if (payload.eventType === 'UPDATE') setJobs(prev => prev.map(j => j.id === (payload.new as Job).id ? payload.new as Job : j))
+              if (payload.eventType === 'DELETE') setJobs(prev => prev.filter(j => j.id !== (payload.old as {id: string}).id))
+            }
+            if (table === 'Location') {
+              if (payload.eventType === 'INSERT') setLocations(prev => [...prev, payload.new as Location])
+              if (payload.eventType === 'UPDATE') setLocations(prev => prev.map(l => l.id === (payload.new as Location).id ? payload.new as Location : l))
+              if (payload.eventType === 'DELETE') setLocations(prev => prev.filter(l => l.id !== (payload.old as {id: string}).id))
+            }
+            if (table === 'Employee') {
+              if (payload.eventType === 'INSERT') setEmployees(prev => [...prev, payload.new as Employee])
+              if (payload.eventType === 'UPDATE') setEmployees(prev => prev.map(e => e.id === (payload.new as Employee).id ? payload.new as Employee : e))
+              if (payload.eventType === 'DELETE') setEmployees(prev => prev.filter(e => e.id !== (payload.old as {id: string}).id))
             }
           }
         )
