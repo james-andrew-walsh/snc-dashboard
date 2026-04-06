@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 
-export type ViewId = 'overview' | 'business-units' | 'jobs-locations' | 'equipment' | 'employees' | 'crew-assignments' | 'dispatch'
+export type ViewId = 'magnet-board' | 'overview' | 'business-units' | 'jobs-locations' | 'equipment' | 'employees' | 'crew-assignments' | 'dispatch'
 
 interface NavItem {
   id: ViewId
@@ -9,6 +9,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  { id: 'magnet-board', label: 'Magnet Board', icon: <MagnetBoardIcon /> },
   { id: 'overview', label: 'Overview', icon: <OverviewIcon /> },
   { id: 'business-units', label: 'Business Units', icon: <BusinessIcon /> },
   { id: 'jobs-locations', label: 'Jobs & Locations', icon: <JobsIcon /> },
@@ -90,6 +91,14 @@ export function Sidebar({ activeView, onNavigate, isOpen, onClose }: SidebarProp
 }
 
 /* Simple SVG icons */
+function MagnetBoardIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+      <path d="M3 4a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm8 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V4zM3 12a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4zm8 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+    </svg>
+  )
+}
+
 function OverviewIcon() {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">

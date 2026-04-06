@@ -8,8 +8,10 @@ import { EquipmentView } from './views/Equipment'
 import { Employees } from './views/Employees'
 import { CrewAssignments } from './views/CrewAssignments'
 import { DispatchSchedule } from './views/DispatchSchedule'
+import { MagnetBoard } from './views/MagnetBoard'
 
 const views: Record<ViewId, React.FC> = {
+  'magnet-board': MagnetBoard,
   'overview': Overview,
   'business-units': BusinessUnits,
   'jobs-locations': JobsLocations,
