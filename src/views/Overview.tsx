@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { MetricCard } from '../components/MetricCard'
+import { MapboxMap } from '../components/MapboxMap'
+import type { Location, DispatchEvent, Equipment, Job, Employee } from '../lib/types'
 
 interface ActivityItem {
   id: string
@@ -17,20 +19,50 @@ export function Overview() {
   const [activity, setActivity] = useState<ActivityItem[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Data for map
+  const [locations, setLocations] = useState<Location[]>([])
+  const [equipment, setEquipment] = useState<Equipment[]>([])
+  const [jobs, setJobs] = useState<Job[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [dispatches, setDispatches] = useState<DispatchEvent[]>([])
+
   useEffect(() => {
-    async function fetchMetrics() {
-      const [eqRes, jobRes, dispRes] = await Promise.all([
-        supabase.from('Equipment').select('id', { count: 'exact', head: true }),
-        supabase.from('Job').select('id', { count: 'exact', head: true }),
-        supabase.from('DispatchEvent').select('id', { count: 'exact', head: true }),
+    async function fetchData() {
+      const [eqRes, jobRes, dispRes, locRes, empRes] = await Promise.all([
+        supabase.from('Equipment').select('*'),
+        supabase.from('Job').select('*'),
+        supabase.from('DispatchEvent').select('*'),
+        supabase.from('Location').select('*'),
+        supabase.from('Employee').select('*'),
       ])
-      setEquipmentCount(eqRes.count ?? 0)
-      setJobCount(jobRes.count ?? 0)
-      setDispatchCount(dispRes.count ?? 0)
+
+      const eqData = (eqRes.data ?? []) as Equipment[]
+      const jobData = (jobRes.data ?? []) as Job[]
+      const dispData = (dispRes.data ?? []) as DispatchEvent[]
+      const locData = (locRes.data ?? []) as Location[]
+      const empData = (empRes.data ?? []) as Employee[]
+
+      setEquipment(eqData)
+      setJobs(jobData)
+      setDispatches(dispData)
+      setLocations(locData)
+      setEmployees(empData)
+
+      setEquipmentCount(eqData.length)
+      setJobCount(jobData.length)
+      setDispatchCount(dispData.length)
       setLoading(false)
     }
-    fetchMetrics()
+    fetchData()
   }, [])
+
+  // Filter active dispatches client-side
+  const today = new Date().toISOString().slice(0, 10)
+  const activeDispatches = dispatches.filter((d) => {
+    if (d.startDate > today) return false
+    if (d.endDate && d.endDate < today) return false
+    return true
+  })
 
   // Realtime activity feed
   useEffect(() => {
@@ -109,6 +141,17 @@ export function Overview() {
               <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
             </svg>
           }
+        />
+      </div>
+
+      {/* Map */}
+      <div className="h-[500px] rounded-lg overflow-hidden">
+        <MapboxMap
+          locations={locations}
+          activeDispatches={activeDispatches}
+          equipment={equipment}
+          jobs={jobs}
+          employees={employees}
         />
       </div>
 

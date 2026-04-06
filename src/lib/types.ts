@@ -32,6 +32,9 @@ export interface Location {
   businessUnitId: string
   code: string
   description: string
+  latitude: number | null
+  longitude: number | null
+  geofence: number[][] | null
 }
 
 export interface Employee {
