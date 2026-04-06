@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import type { Location, DispatchEvent, Equipment, Job, Employee } from '../lib/types'
@@ -21,6 +21,9 @@ export function MapboxMap({ locations, activeDispatches, equipment, jobs, employ
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const markersRef = useRef<mapboxgl.Marker[]>([])
+  const addedLayersRef = useRef<string[]>([])
+  const addedSourcesRef = useRef<string[]>([])
+  const [isLoaded, setIsLoaded] = useState(false)
 
   const token = import.meta.env.VITE_MAPBOX_TOKEN
   if (!token || token === 'pk.your_mapbox_token_here') {
@@ -35,6 +38,7 @@ export function MapboxMap({ locations, activeDispatches, equipment, jobs, employ
     )
   }
 
+  // Effect 1: initialize map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
@@ -50,85 +54,7 @@ export function MapboxMap({ locations, activeDispatches, equipment, jobs, employ
 
     map.addControl(new mapboxgl.NavigationControl(), 'top-right')
 
-    map.on('load', () => {
-      // Add geofence polygons
-      locations.forEach((loc) => {
-        if (!loc.geofence || !loc.latitude || !loc.longitude) return
-
-        const sourceId = `geofence-${loc.id}`
-
-        map.addSource(sourceId, {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            properties: {},
-            geometry: {
-              type: 'Polygon',
-              coordinates: [loc.geofence],
-            },
-          } as GeoJSON.Feature,
-        })
-
-        map.addLayer({
-          id: `${sourceId}-fill`,
-          type: 'fill',
-          source: sourceId,
-          paint: {
-            'fill-color': 'rgba(249, 115, 22, 0.15)',
-            'fill-outline-color': 'rgb(249, 115, 22)',
-          },
-        })
-
-        map.addLayer({
-          id: `${sourceId}-line`,
-          type: 'line',
-          source: sourceId,
-          paint: {
-            'line-color': 'rgb(249, 115, 22)',
-            'line-width': 2,
-          },
-        })
-      })
-
-      // Add location labels
-      const labelFeatures: GeoJSON.Feature[] = locations
-        .filter((loc) => loc.latitude && loc.longitude)
-        .map((loc) => ({
-          type: 'Feature' as const,
-          properties: { code: loc.code },
-          geometry: {
-            type: 'Point' as const,
-            coordinates: [loc.longitude!, loc.latitude!],
-          },
-        }))
-
-      if (labelFeatures.length > 0) {
-        map.addSource('location-labels', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: labelFeatures },
-        })
-
-        map.addLayer({
-          id: 'location-labels-text',
-          type: 'symbol',
-          source: 'location-labels',
-          layout: {
-            'text-field': ['get', 'code'],
-            'text-size': 12,
-            'text-offset': [0, -1.5],
-            'text-anchor': 'bottom',
-          },
-          paint: {
-            'text-color': '#f97316',
-            'text-halo-color': '#0f172a',
-            'text-halo-width': 1.5,
-          },
-        })
-      }
-
-      // Add equipment markers from active dispatches
-      addEquipmentMarkers(map)
-    })
+    map.on('load', () => setIsLoaded(true))
 
     return () => {
       markersRef.current.forEach((m) => m.remove())
@@ -138,14 +64,104 @@ export function MapboxMap({ locations, activeDispatches, equipment, jobs, employ
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Update equipment markers when dispatch data changes
+  // Effect 2: render data when map is ready and data has arrived
   useEffect(() => {
-    if (!mapRef.current || !mapRef.current.loaded()) return
-    addEquipmentMarkers(mapRef.current)
-  }, [activeDispatches, equipment, jobs, locations, employees]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!isLoaded || !mapRef.current) return
+    const map = mapRef.current
 
-  function addEquipmentMarkers(map: mapboxgl.Map) {
-    // Remove existing markers
+    // Remove existing layers then sources
+    for (const layerId of addedLayersRef.current) {
+      if (map.getLayer(layerId)) map.removeLayer(layerId)
+    }
+    for (const sourceId of addedSourcesRef.current) {
+      if (map.getSource(sourceId)) map.removeSource(sourceId)
+    }
+    addedLayersRef.current = []
+    addedSourcesRef.current = []
+
+    // Add geofence polygons
+    locations.forEach((loc) => {
+      if (!loc.geofence || !loc.latitude || !loc.longitude) return
+
+      const sourceId = `geofence-${loc.id}`
+      const fillId = `${sourceId}-fill`
+      const lineId = `${sourceId}-line`
+
+      map.addSource(sourceId, {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Polygon',
+            coordinates: [loc.geofence],
+          },
+        } as GeoJSON.Feature,
+      })
+      addedSourcesRef.current.push(sourceId)
+
+      map.addLayer({
+        id: fillId,
+        type: 'fill',
+        source: sourceId,
+        paint: {
+          'fill-color': 'rgba(249, 115, 22, 0.15)',
+          'fill-outline-color': 'rgb(249, 115, 22)',
+        },
+      })
+      addedLayersRef.current.push(fillId)
+
+      map.addLayer({
+        id: lineId,
+        type: 'line',
+        source: sourceId,
+        paint: {
+          'line-color': 'rgb(249, 115, 22)',
+          'line-width': 2,
+        },
+      })
+      addedLayersRef.current.push(lineId)
+    })
+
+    // Add location labels
+    const labelFeatures: GeoJSON.Feature[] = locations
+      .filter((loc) => loc.latitude && loc.longitude)
+      .map((loc) => ({
+        type: 'Feature' as const,
+        properties: { code: loc.code },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [loc.longitude!, loc.latitude!],
+        },
+      }))
+
+    if (labelFeatures.length > 0) {
+      map.addSource('location-labels', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: labelFeatures },
+      })
+      addedSourcesRef.current.push('location-labels')
+
+      map.addLayer({
+        id: 'location-labels-text',
+        type: 'symbol',
+        source: 'location-labels',
+        layout: {
+          'text-field': ['get', 'code'],
+          'text-size': 12,
+          'text-offset': [0, -1.5],
+          'text-anchor': 'bottom',
+        },
+        paint: {
+          'text-color': '#f97316',
+          'text-halo-color': '#0f172a',
+          'text-halo-width': 1.5,
+        },
+      })
+      addedLayersRef.current.push('location-labels-text')
+    }
+
+    // Add equipment markers
     markersRef.current.forEach((m) => m.remove())
     markersRef.current = []
 
@@ -192,7 +208,7 @@ export function MapboxMap({ locations, activeDispatches, equipment, jobs, employ
 
       markersRef.current.push(marker)
     })
-  }
+  }, [isLoaded, locations, activeDispatches, equipment, jobs, employees])
 
   return <div ref={containerRef} className="w-full h-full" />
 }
