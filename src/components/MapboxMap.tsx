@@ -174,10 +174,14 @@ export function MapboxMap({ locations, activeDispatches, equipment, jobs, employ
       const equip = equipMap.get(dispatch.equipmentId)
       if (!equip) return
 
-      const job = jobMap.get(dispatch.jobId)
-      if (!job || !job.locationId) return
-
-      const loc = locMap.get(job.locationId)
+      // Resolve location: either via Job → locationId, or directly via dispatch.locationId
+      let loc = null
+      if (dispatch.jobId) {
+        const job = jobMap.get(dispatch.jobId)
+        if (job?.locationId) loc = locMap.get(job.locationId) ?? null
+      } else if (dispatch.locationId) {
+        loc = locMap.get(dispatch.locationId) ?? null
+      }
       if (!loc || !loc.latitude || !loc.longitude) return
 
       const operator = empMap.get(dispatch.operatorId)
