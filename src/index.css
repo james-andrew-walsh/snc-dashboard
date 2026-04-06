@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@theme {
+  --color-snc-orange: #f97316;
+  --color-snc-blue: #3b82f6;
+  --color-snc-dark: #0f172a;
+  --color-snc-sidebar: #1e293b;
+  --color-snc-card: #334155;
+  --color-snc-flash: #fbbf24;
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+}
+
+/* Flash animation for realtime updates */
+@keyframes flash-highlight {
+  0% { background-color: var(--color-snc-flash); }
+  100% { background-color: transparent; }
+}
+
+.flash-row {
+  animation: flash-highlight 1s ease-out;
+}
