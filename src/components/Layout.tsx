@@ -19,6 +19,7 @@ export function Layout({ activeView, onNavigate, children }: LayoutProps) {
         onNavigate={onNavigate}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        role={role}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">

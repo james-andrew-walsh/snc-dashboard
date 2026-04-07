@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 
-export type ViewId = 'magnet-board' | 'overview' | 'business-units' | 'jobs-locations' | 'equipment' | 'employees' | 'crew-assignments' | 'dispatch'
+export type ViewId = 'magnet-board' | 'overview' | 'business-units' | 'jobs-locations' | 'equipment' | 'employees' | 'crew-assignments' | 'dispatch' | 'admin'
 
 interface NavItem {
   id: ViewId
@@ -24,9 +24,10 @@ interface SidebarProps {
   onNavigate: (view: ViewId) => void
   isOpen: boolean
   onClose: () => void
+  role?: string | null
 }
 
-export function Sidebar({ activeView, onNavigate, isOpen, onClose }: SidebarProps) {
+export function Sidebar({ activeView, onNavigate, isOpen, onClose, role }: SidebarProps) {
   return (
     <>
       {/* Mobile overlay */}
@@ -76,6 +77,27 @@ export function Sidebar({ activeView, onNavigate, isOpen, onClose }: SidebarProp
               {item.label}
             </button>
           ))}
+
+          {/* Admin — visible only to admin users */}
+          {role === 'admin' && (
+            <>
+              <div className="my-2 border-t border-slate-700" />
+              <button
+                onClick={() => { onNavigate('admin'); onClose() }}
+                className={`
+                  w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                  transition-colors cursor-pointer
+                  ${activeView === 'admin'
+                    ? 'bg-orange-500/15 text-orange-400'
+                    : 'text-slate-300 hover:bg-slate-700/60 hover:text-slate-100'
+                  }
+                `}
+              >
+                <span className="w-5 h-5 flex-shrink-0"><AdminIcon /></span>
+                Admin
+              </button>
+            </>
+          )}
         </nav>
 
         {/* Footer */}
@@ -151,6 +173,14 @@ function DispatchIcon() {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
       <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+    </svg>
+  )
+}
+
+function AdminIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
     </svg>
   )
 }
