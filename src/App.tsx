@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import { Login } from './pages/Login'
+import { AuthCallback } from './pages/AuthCallback'
 import { Layout } from './components/Layout'
 import type { ViewId } from './components/Sidebar'
 import { Overview } from './views/Overview'
@@ -21,7 +24,7 @@ const views: Record<ViewId, React.FC> = {
   'dispatch': DispatchSchedule,
 }
 
-function App() {
+function AuthenticatedApp() {
   const [activeView, setActiveView] = useState<ViewId>('overview')
   const ActiveComponent = views[activeView]
 
@@ -29,6 +32,25 @@ function App() {
     <Layout activeView={activeView} onNavigate={setActiveView}>
       <ActiveComponent />
     </Layout>
+  )
+}
+
+function AppRouter() {
+  const { session } = useAuth()
+  const path = window.location.pathname
+
+  // Public routes
+  if (path === '/auth/callback') return <AuthCallback />
+  if (!session) return <Login />
+
+  return <AuthenticatedApp />
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppRouter />
+    </AuthProvider>
   )
 }
 
