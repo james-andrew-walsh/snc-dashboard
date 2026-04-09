@@ -30,7 +30,11 @@ export function Overview() {
   const [drawMode, setDrawMode] = useState(false)
   const [drawnPolygon, setDrawnPolygon] = useState<GeoJSON.Polygon | null>(null)
 
-  // New location form
+  // Edit / Delete
+  const [editingLocationId, setEditingLocationId] = useState<string | null>(null)
+  const [deletingLocationId, setDeletingLocationId] = useState<string | null>(null)
+
+  // New location form (also used for editing)
   const [newName, setNewName] = useState('')
   const [newDescription, setNewDescription] = useState('')
   const [selectedJobs, setSelectedJobs] = useState<Job[]>([])
@@ -178,39 +182,83 @@ export function Overview() {
         centerLng = lngs.reduce((a, b) => a + b, 0) / lngs.length
       }
 
-      const { data: loc, error: locErr } = await supabase
-        .from('SiteLocation')
-        .insert({
-          name: newName.trim(),
-          description: newDescription.trim() || null,
-          polygon: drawnPolygon,
-          centerLat,
-          centerLng,
-        })
-        .select()
-        .single()
-
-      if (locErr) throw locErr
-
-      const newLoc = loc as SiteLocation
-
-      // Insert SiteLocationJob records
-      if (selectedJobs.length > 0) {
-        const jobRows = selectedJobs.map(j => ({
-          siteLocationId: newLoc.id,
-          jobHcssId: j.id,
-          jobCode: j.code,
-          jobDescription: j.description,
-        }))
-        const { data: jobData, error: jobErr } = await supabase
-          .from('SiteLocationJob')
-          .insert(jobRows)
+      if (editingLocationId) {
+        // UPDATE existing location
+        const { data: loc, error: locErr } = await supabase
+          .from('SiteLocation')
+          .update({
+            name: newName.trim(),
+            description: newDescription.trim() || null,
+            polygon: drawnPolygon,
+            centerLat,
+            centerLng,
+          })
+          .eq('id', editingLocationId)
           .select()
-        if (jobErr) throw jobErr
-        setSiteLocationJobs(prev => [...prev, ...((jobData ?? []) as SiteLocationJob[])])
+          .single()
+
+        if (locErr) throw locErr
+        const updatedLoc = loc as SiteLocation
+
+        // Replace SiteLocationJob records: delete existing, re-insert
+        await supabase.from('SiteLocationJob').delete().eq('siteLocationId', editingLocationId)
+
+        let newJobRecords: SiteLocationJob[] = []
+        if (selectedJobs.length > 0) {
+          const jobRows = selectedJobs.map(j => ({
+            siteLocationId: editingLocationId,
+            jobHcssId: j.id || null,
+            jobCode: j.code,
+            jobDescription: j.description,
+          }))
+          const { data: jobData, error: jobErr } = await supabase
+            .from('SiteLocationJob')
+            .insert(jobRows)
+            .select()
+          if (jobErr) throw jobErr
+          newJobRecords = (jobData ?? []) as SiteLocationJob[]
+        }
+
+        setSiteLocations(prev => prev.map(l => l.id === editingLocationId ? updatedLoc : l))
+        setSiteLocationJobs(prev => [
+          ...prev.filter(j => j.siteLocationId !== editingLocationId),
+          ...newJobRecords,
+        ])
+      } else {
+        // INSERT new location
+        const { data: loc, error: locErr } = await supabase
+          .from('SiteLocation')
+          .insert({
+            name: newName.trim(),
+            description: newDescription.trim() || null,
+            polygon: drawnPolygon,
+            centerLat,
+            centerLng,
+          })
+          .select()
+          .single()
+
+        if (locErr) throw locErr
+        const newLoc = loc as SiteLocation
+
+        if (selectedJobs.length > 0) {
+          const jobRows = selectedJobs.map(j => ({
+            siteLocationId: newLoc.id,
+            jobHcssId: j.id,
+            jobCode: j.code,
+            jobDescription: j.description,
+          }))
+          const { data: jobData, error: jobErr } = await supabase
+            .from('SiteLocationJob')
+            .insert(jobRows)
+            .select()
+          if (jobErr) throw jobErr
+          setSiteLocationJobs(prev => [...prev, ...((jobData ?? []) as SiteLocationJob[])])
+        }
+
+        setSiteLocations(prev => [newLoc, ...prev])
       }
 
-      setSiteLocations(prev => [newLoc, ...prev])
       resetForm()
     } catch (err) {
       console.error('Failed to save location:', err)
@@ -229,6 +277,37 @@ export function Overview() {
     setSelectedJobs([])
     setJobSearch('')
     setJobResults([])
+    setEditingLocationId(null)
+  }
+
+  const startEdit = (loc: SiteLocation) => {
+    setEditingLocationId(loc.id)
+    setDeletingLocationId(null)
+    setShowNewForm(true)
+    setNewName(loc.name)
+    setNewDescription(loc.description ?? '')
+    setDrawnPolygon(loc.polygon)
+    // Load attached jobs into selectedJobs
+    const locJobs = siteLocationJobs.filter(j => j.siteLocationId === loc.id)
+    setSelectedJobs(locJobs.map(j => ({
+      id: j.jobHcssId ?? '',
+      businessUnitId: '',
+      code: j.jobCode,
+      description: j.jobDescription ?? '',
+      locationId: null,
+    })))
+  }
+
+  const handleDelete = async (locId: string) => {
+    try {
+      const { error } = await supabase.from('SiteLocation').delete().eq('id', locId)
+      if (error) throw error
+      setSiteLocations(prev => prev.filter(l => l.id !== locId))
+      setSiteLocationJobs(prev => prev.filter(j => j.siteLocationId !== locId))
+      setDeletingLocationId(null)
+    } catch (err) {
+      console.error('Failed to delete location:', err)
+    }
   }
 
   const addJob = (job: Job) => {
@@ -241,9 +320,6 @@ export function Overview() {
   const removeJob = (code: string) => {
     setSelectedJobs(prev => prev.filter(j => j.code !== code))
   }
-
-  const jobCountForLocation = (locId: string) =>
-    siteLocationJobs.filter(j => j.siteLocationId === locId).length
 
   return (
     <div className="space-y-6">
@@ -426,7 +502,7 @@ export function Overview() {
                       disabled={saving || !newName.trim()}
                       className="flex-1 text-sm bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:hover:bg-orange-600 text-white rounded px-3 py-1.5 font-medium"
                     >
-                      {saving ? 'Saving...' : 'Save Location'}
+                      {saving ? 'Saving...' : editingLocationId ? 'Update Location' : 'Save Location'}
                     </button>
                     <button
                       onClick={resetForm}
@@ -442,18 +518,72 @@ export function Overview() {
               {siteLocations.length === 0 && !showNewForm && (
                 <p className="text-xs text-slate-500 text-center py-4">No locations yet</p>
               )}
-              {siteLocations.map(loc => (
-                <div key={loc.id} className="bg-slate-700/30 rounded px-3 py-2 border border-slate-700">
-                  <div className="text-sm font-medium text-slate-200">{loc.name}</div>
-                  {loc.description && (
-                    <div className="text-xs text-slate-400 mt-0.5">{loc.description}</div>
-                  )}
-                  <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
-                    <span>{jobCountForLocation(loc.id)} job{jobCountForLocation(loc.id) !== 1 ? 's' : ''}</span>
-                    <span>{loc.polygon ? 'Geofenced' : 'No geofence'}</span>
+              {siteLocations.map(loc => {
+                const locJobs = siteLocationJobs.filter(j => j.siteLocationId === loc.id)
+                const isDeleting = deletingLocationId === loc.id
+
+                return (
+                  <div key={loc.id} className="bg-slate-700/30 rounded px-3 py-2 border border-slate-700">
+                    <div className="flex items-start justify-between gap-1">
+                      <div className="text-sm font-medium text-slate-200">{loc.name}</div>
+                      <div className="flex items-center gap-0.5 flex-shrink-0">
+                        <button
+                          onClick={() => startEdit(loc)}
+                          className="p-1 text-slate-400 hover:text-slate-200"
+                          title="Edit"
+                        >
+                          <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                            <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => setDeletingLocationId(loc.id)}
+                          className="p-1 text-slate-400 hover:text-red-400"
+                          title="Delete"
+                        >
+                          <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                            <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.519.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    {loc.description && (
+                      <div className="text-xs text-slate-400 mt-0.5">{loc.description}</div>
+                    )}
+                    {locJobs.length > 0 && (
+                      <div className="mt-1 space-y-0.5">
+                        {locJobs.map(j => (
+                          <div key={j.id} className="text-xs text-slate-400">
+                            {j.jobCode} — {j.jobDescription}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="text-xs text-slate-500 mt-1">
+                      {loc.polygon ? '✓ Geofenced' : 'No geofence'}
+                    </div>
+                    {isDeleting && (
+                      <div className="mt-2 bg-red-500/10 rounded px-2 py-1.5 border border-red-500/30">
+                        <p className="text-xs text-red-400">Delete {loc.name}? This cannot be undone.</p>
+                        <div className="flex gap-2 mt-1.5">
+                          <button
+                            onClick={() => handleDelete(loc.id)}
+                            className="text-xs text-red-400 hover:text-red-300 font-medium"
+                          >
+                            Confirm Delete
+                          </button>
+                          <button
+                            onClick={() => setDeletingLocationId(null)}
+                            className="text-xs text-slate-400 hover:text-slate-200"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
