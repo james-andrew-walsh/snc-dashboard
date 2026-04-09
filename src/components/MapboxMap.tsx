@@ -92,6 +92,8 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
         model: p.model ?? '',
         equipmentDescription: p.equipmentDescription ?? '',
         reconciliation_status: p.reconciliation_status ?? 'OUTSIDE',
+        e360_job: p.e360_job ?? '',
+        hj_job: p.hj_job ?? '',
       },
       geometry: {
         type: 'Point' as const,
@@ -162,12 +164,27 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
       const makeModel = [props.make, props.model].filter(Boolean).join(' ')
       const label = makeModel || props.equipmentDescription || ''
 
+      // Build reconciliation warning if applicable
+      let reconHtml = ''
+      const reconStatus = props.reconciliation_status
+      if (reconStatus === 'ANOMALY') {
+        const job = props.e360_job || 'unknown'
+        reconHtml = `<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;color:#f59e0b;font-size:12px">&#9888;&#65039; No HeavyJob authorization — E360 assigns to job ${job} but HeavyJob has no record for this site</div>`
+      } else if (reconStatus === 'DISPUTED') {
+        const e360 = props.e360_job || 'unknown'
+        const hj = props.hj_job || 'unknown'
+        reconHtml = `<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;color:#f59e0b;font-size:12px">&#9888;&#65039; Job disagreement — E360: ${e360} · HeavyJob: ${hj}</div>`
+      } else if (reconStatus === 'NOT_IN_EITHER') {
+        reconHtml = `<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;color:#f59e0b;font-size:12px">&#9888;&#65039; Not in any system — engine active, no E360 or HeavyJob record</div>`
+      }
+
       const html = `<div style="color:#1e293b;font-size:13px;line-height:1.6">
         ${label ? `<div style="font-weight:600;margin-bottom:2px">${label}</div>` : ''}
         <div style="color:#475569">${props.equipmentCode}</div>
         Engine: <span style="color:${statusColor};font-weight:600">${props.engineStatus === 'Active' ? 'Active' : 'Off'}</span><br/>
         GPS: ${formatGpsTime(props.locationDateTime)}
         ${stale ? '<br/><span style="color:#f59e0b">&#9888; GPS stale</span>' : ''}
+        ${reconHtml}
       </div>`
 
       popupRef.current?.remove()

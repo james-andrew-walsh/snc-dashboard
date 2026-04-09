@@ -81,6 +81,8 @@ export function Overview() {
         model: (row.model as string) ?? '',
         equipmentDescription: (row.description as string) ?? '',
         reconciliation_status: (row.reconciliation_status as string) ?? 'OUTSIDE',
+        e360_job: (row.e360_job as string) ?? null,
+        hj_job: (row.hj_job as string) ?? null,
       }))
       setTelematicsPoints(points)
       setSiteLocations((siteLocRes.data ?? []) as SiteLocation[])
@@ -370,6 +372,7 @@ export function Overview() {
               Click points to draw polygon. Double-click or click first point to close.
             </div>
           )}
+          <MapLegend />
         </div>
 
         {/* Locations Panel */}
@@ -608,6 +611,40 @@ export function Overview() {
             ))
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+function MapLegend() {
+  return (
+    <div className="absolute bottom-3 left-3 z-10 bg-slate-900/80 rounded-lg px-3 py-2.5 text-xs text-slate-300 space-y-1.5 pointer-events-auto">
+      <div className="flex items-center gap-2">
+        <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" />
+        Engine Active
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-500" />
+        Engine Off
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-500 opacity-40" />
+        Stale GPS
+      </div>
+      <div className="border-t border-slate-600 pt-1.5 mt-1.5 text-orange-400 font-semibold text-[10px] uppercase tracking-wide">
+        Reconciliation
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="inline-block w-2.5 h-2.5 rounded-full border-2 border-red-500 bg-transparent" />
+        <span>Anomaly</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="inline-block w-2.5 h-2.5 rounded-full border-2 border-yellow-500 bg-transparent" />
+        <span>Disputed</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="inline-block w-2.5 h-2.5 rounded-full border-2 border-orange-500 bg-transparent" />
+        <span>Unregistered</span>
       </div>
     </div>
   )
