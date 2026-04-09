@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { MetricCard } from '../components/MetricCard'
 import { MapboxMap } from '../components/MapboxMap'
-import type { TelematicsSnapshot } from '../lib/types'
+import type { TelematicsSnapshot, SiteLocation, SiteLocationJob, Job } from '../lib/types'
 
 interface ActivityItem {
   id: string
@@ -22,9 +22,29 @@ export function Overview() {
   // Telematics data for map
   const [telematicsPoints, setTelematicsPoints] = useState<TelematicsSnapshot[]>([])
 
+  // Geofence / Location state
+  const [siteLocations, setSiteLocations] = useState<SiteLocation[]>([])
+  const [siteLocationJobs, setSiteLocationJobs] = useState<SiteLocationJob[]>([])
+  const [locationsExpanded, setLocationsExpanded] = useState(true)
+  const [showNewForm, setShowNewForm] = useState(false)
+  const [drawMode, setDrawMode] = useState(false)
+  const [drawnPolygon, setDrawnPolygon] = useState<GeoJSON.Polygon | null>(null)
+
+  // New location form
+  const [newName, setNewName] = useState('')
+  const [newDescription, setNewDescription] = useState('')
+  const [selectedJobs, setSelectedJobs] = useState<Job[]>([])
+  const [saving, setSaving] = useState(false)
+
+  // Job search
+  const [jobSearch, setJobSearch] = useState('')
+  const [jobResults, setJobResults] = useState<Job[]>([])
+  const [jobSearchLoading, setJobSearchLoading] = useState(false)
+  const jobSearchTimeout = useRef<ReturnType<typeof setTimeout>>(null)
+
   useEffect(() => {
     async function fetchData() {
-      const [eqRes, jobRes, dispRes, telRes, eqDetailRes] = await Promise.all([
+      const [eqRes, jobRes, dispRes, telRes, eqDetailRes, siteLocRes, siteLocJobRes] = await Promise.all([
         supabase.from('Equipment').select('id', { count: 'exact', head: true }),
         supabase.from('Job').select('id', { count: 'exact', head: true }),
         supabase.from('DispatchEvent').select('id', { count: 'exact', head: true }),
@@ -36,6 +56,8 @@ export function Overview() {
           .order('snapshotAt', { ascending: false })
           .limit(5000),
         supabase.from('Equipment').select('code, make, model, description'),
+        supabase.from('SiteLocation').select('*').order('createdAt', { ascending: false }),
+        supabase.from('SiteLocationJob').select('*'),
       ])
 
       setEquipmentCount(eqRes.count ?? 0)
@@ -64,6 +86,8 @@ export function Overview() {
         }
       }
       setTelematicsPoints(latest)
+      setSiteLocations((siteLocRes.data ?? []) as SiteLocation[])
+      setSiteLocationJobs((siteLocJobRes.data ?? []) as SiteLocationJob[])
 
       setLoading(false)
     }
@@ -111,6 +135,116 @@ export function Overview() {
     }
   }, [])
 
+  // Job typeahead search
+  useEffect(() => {
+    if (jobSearchTimeout.current) clearTimeout(jobSearchTimeout.current)
+    if (!jobSearch.trim()) {
+      setJobResults([])
+      return
+    }
+    setJobSearchLoading(true)
+    jobSearchTimeout.current = setTimeout(async () => {
+      const { data } = await supabase
+        .from('Job')
+        .select('*')
+        .or(`code.ilike.%${jobSearch}%,description.ilike.%${jobSearch}%`)
+        .limit(10)
+      setJobResults((data ?? []) as Job[])
+      setJobSearchLoading(false)
+    }, 250)
+  }, [jobSearch])
+
+  const handleDrawComplete = useCallback((polygon: GeoJSON.Polygon) => {
+    setDrawnPolygon(polygon)
+    setDrawMode(false)
+  }, [])
+
+  const handleDrawCancel = useCallback(() => {
+    // noop — polygon cleared when draw mode toggled off
+  }, [])
+
+  const handleSave = async () => {
+    if (!newName.trim()) return
+    setSaving(true)
+    try {
+      // Compute center from polygon
+      let centerLat: number | null = null
+      let centerLng: number | null = null
+      if (drawnPolygon) {
+        const coords = drawnPolygon.coordinates[0]
+        const lats = coords.map(c => c[1])
+        const lngs = coords.map(c => c[0])
+        centerLat = lats.reduce((a, b) => a + b, 0) / lats.length
+        centerLng = lngs.reduce((a, b) => a + b, 0) / lngs.length
+      }
+
+      const { data: loc, error: locErr } = await supabase
+        .from('SiteLocation')
+        .insert({
+          name: newName.trim(),
+          description: newDescription.trim() || null,
+          polygon: drawnPolygon,
+          centerLat,
+          centerLng,
+        })
+        .select()
+        .single()
+
+      if (locErr) throw locErr
+
+      const newLoc = loc as SiteLocation
+
+      // Insert SiteLocationJob records
+      if (selectedJobs.length > 0) {
+        const jobRows = selectedJobs.map(j => ({
+          siteLocationId: newLoc.id,
+          jobHcssId: j.id,
+          jobCode: j.code,
+          jobDescription: j.description,
+        }))
+        const { data: jobData, error: jobErr } = await supabase
+          .from('SiteLocationJob')
+          .insert(jobRows)
+          .select()
+        if (jobErr) throw jobErr
+        setSiteLocationJobs(prev => [...prev, ...((jobData ?? []) as SiteLocationJob[])])
+      }
+
+      setSiteLocations(prev => [newLoc, ...prev])
+      resetForm()
+    } catch (err) {
+      console.error('Failed to save location:', err)
+      alert('Failed to save location. Check console for details.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const resetForm = () => {
+    setShowNewForm(false)
+    setDrawMode(false)
+    setDrawnPolygon(null)
+    setNewName('')
+    setNewDescription('')
+    setSelectedJobs([])
+    setJobSearch('')
+    setJobResults([])
+  }
+
+  const addJob = (job: Job) => {
+    if (selectedJobs.some(j => j.code === job.code)) return
+    setSelectedJobs(prev => [...prev, job])
+    setJobSearch('')
+    setJobResults([])
+  }
+
+  const removeJob = (code: string) => {
+    setSelectedJobs(prev => prev.filter(j => j.code !== code))
+  }
+
+  const jobCountForLocation = (locId: string) =>
+    siteLocationJobs.filter(j => j.siteLocationId === locId).length
+
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-slate-100">Overview</h2>
@@ -149,9 +283,180 @@ export function Overview() {
         />
       </div>
 
-      {/* Map */}
-      <div className="h-[500px] rounded-lg overflow-hidden">
-        <MapboxMap points={telematicsPoints} />
+      {/* Map + Locations Panel */}
+      <div className="flex gap-4">
+        {/* Map */}
+        <div className="flex-1 h-[500px] rounded-lg overflow-hidden relative">
+          <MapboxMap
+            points={telematicsPoints}
+            geofences={siteLocations}
+            drawMode={drawMode}
+            onDrawComplete={handleDrawComplete}
+            onDrawCancel={handleDrawCancel}
+          />
+          {drawMode && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-slate-900/90 text-orange-400 text-sm px-4 py-2 rounded-lg border border-orange-500/40 z-10">
+              Click points to draw polygon. Double-click or click first point to close.
+            </div>
+          )}
+        </div>
+
+        {/* Locations Panel */}
+        <div className={`bg-slate-800 rounded-lg border border-slate-700 transition-all ${locationsExpanded ? 'w-80' : 'w-10'} flex-shrink-0`}>
+          <button
+            onClick={() => setLocationsExpanded(!locationsExpanded)}
+            className="w-full px-3 py-3 flex items-center gap-2 text-sm font-semibold text-slate-200 hover:bg-slate-700/50"
+          >
+            <svg viewBox="0 0 20 20" fill="currentColor" className={`w-4 h-4 transition-transform ${locationsExpanded ? 'rotate-90' : ''}`}>
+              <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+            </svg>
+            {locationsExpanded && 'Locations'}
+          </button>
+
+          {locationsExpanded && (
+            <div className="px-3 pb-3 space-y-3 max-h-[440px] overflow-y-auto">
+              {/* New Location button */}
+              {!showNewForm && (
+                <button
+                  onClick={() => setShowNewForm(true)}
+                  className="w-full text-sm bg-orange-600 hover:bg-orange-500 text-white rounded px-3 py-1.5 font-medium"
+                >
+                  + New Location
+                </button>
+              )}
+
+              {/* New Location form */}
+              {showNewForm && (
+                <div className="bg-slate-700/50 rounded-lg p-3 space-y-3 border border-slate-600">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={newName}
+                      onChange={e => setNewName(e.target.value)}
+                      placeholder="e.g. West 4th Street Corridor"
+                      className="w-full bg-slate-800 text-sm text-slate-200 rounded px-2.5 py-1.5 border border-slate-600 focus:border-orange-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Description</label>
+                    <input
+                      type="text"
+                      value={newDescription}
+                      onChange={e => setNewDescription(e.target.value)}
+                      placeholder="Optional description"
+                      className="w-full bg-slate-800 text-sm text-slate-200 rounded px-2.5 py-1.5 border border-slate-600 focus:border-orange-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Job search */}
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Job Codes</label>
+                    {selectedJobs.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {selectedJobs.map(j => (
+                          <span key={j.code} className="inline-flex items-center gap-1 bg-orange-500/20 text-orange-300 text-xs px-2 py-0.5 rounded">
+                            {j.code}
+                            <button onClick={() => removeJob(j.code)} className="hover:text-orange-100">&times;</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={jobSearch}
+                        onChange={e => setJobSearch(e.target.value)}
+                        placeholder="Search jobs by code or description..."
+                        className="w-full bg-slate-800 text-sm text-slate-200 rounded px-2.5 py-1.5 border border-slate-600 focus:border-orange-500 focus:outline-none"
+                      />
+                      {jobSearch.trim() && (
+                        <div className="absolute z-20 w-full mt-1 bg-slate-800 border border-slate-600 rounded shadow-lg max-h-40 overflow-y-auto">
+                          {jobSearchLoading ? (
+                            <div className="px-3 py-2 text-xs text-slate-500">Searching...</div>
+                          ) : jobResults.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-slate-500">No jobs found</div>
+                          ) : (
+                            jobResults.map(j => (
+                              <button
+                                key={j.id}
+                                onClick={() => addJob(j)}
+                                className="w-full text-left px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-700 flex items-center justify-between"
+                              >
+                                <span className="font-mono text-orange-400">{j.code}</span>
+                                <span className="text-xs text-slate-400 truncate ml-2">{j.description}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Draw geofence button */}
+                  <div>
+                    {!drawnPolygon ? (
+                      <button
+                        onClick={() => setDrawMode(!drawMode)}
+                        className={`w-full text-sm rounded px-3 py-1.5 font-medium ${
+                          drawMode
+                            ? 'bg-orange-500/30 text-orange-300 border border-orange-500'
+                            : 'bg-slate-600 hover:bg-slate-500 text-slate-200'
+                        }`}
+                      >
+                        {drawMode ? 'Drawing... (click map)' : 'Draw Geofence'}
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-green-400">Polygon drawn</span>
+                        <button
+                          onClick={() => { setDrawnPolygon(null); setDrawMode(true) }}
+                          className="text-xs text-slate-400 hover:text-slate-200 underline"
+                        >
+                          Redraw
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Save / Cancel */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSave}
+                      disabled={saving || !newName.trim()}
+                      className="flex-1 text-sm bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:hover:bg-orange-600 text-white rounded px-3 py-1.5 font-medium"
+                    >
+                      {saving ? 'Saving...' : 'Save Location'}
+                    </button>
+                    <button
+                      onClick={resetForm}
+                      className="text-sm text-slate-400 hover:text-slate-200 px-3 py-1.5"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Existing locations list */}
+              {siteLocations.length === 0 && !showNewForm && (
+                <p className="text-xs text-slate-500 text-center py-4">No locations yet</p>
+              )}
+              {siteLocations.map(loc => (
+                <div key={loc.id} className="bg-slate-700/30 rounded px-3 py-2 border border-slate-700">
+                  <div className="text-sm font-medium text-slate-200">{loc.name}</div>
+                  {loc.description && (
+                    <div className="text-xs text-slate-400 mt-0.5">{loc.description}</div>
+                  )}
+                  <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                    <span>{jobCountForLocation(loc.id)} job{jobCountForLocation(loc.id) !== 1 ? 's' : ''}</span>
+                    <span>{loc.polygon ? 'Geofenced' : 'No geofence'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Activity feed */}

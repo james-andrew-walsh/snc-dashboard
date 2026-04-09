@@ -71,6 +71,28 @@ export interface TelematicsSnapshot {
   equipmentDescription?: string
 }
 
+export interface SiteLocation {
+  id: string
+  name: string
+  description: string | null
+  centerLat: number | null
+  centerLng: number | null
+  polygon: GeoJSON.Polygon | null
+  radiusMeters: number | null
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SiteLocationJob {
+  id: string
+  siteLocationId: string
+  jobHcssId: string | null
+  jobCode: string
+  jobDescription: string | null
+  createdAt: string
+}
+
 export interface CrewAssignment {
   id: string
   jobId: string

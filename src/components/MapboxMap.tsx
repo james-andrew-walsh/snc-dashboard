@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import mapboxgl from 'mapbox-gl'
+import MapboxDraw from '@mapbox/mapbox-gl-draw'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import type { TelematicsSnapshot } from '../lib/types'
+import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css'
+import type { TelematicsSnapshot, SiteLocation } from '../lib/types'
 
 interface MapboxMapProps {
   points: TelematicsSnapshot[]
+  geofences?: SiteLocation[]
+  drawMode?: boolean
+  onDrawComplete?: (polygon: GeoJSON.Polygon) => void
+  onDrawCancel?: () => void
 }
 
 function formatGpsTime(dateStr: string | null): string {
@@ -20,16 +26,16 @@ function formatGpsTime(dateStr: string | null): string {
   }
   if (diffHours < 24) return `${diffHours} hours ago`
 
-  // Different day — show date + time
   return date.toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
   })
 }
 
-export function MapboxMap({ points }: MapboxMapProps) {
+export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComplete, onDrawCancel }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const popupRef = useRef<mapboxgl.Popup | null>(null)
+  const drawRef = useRef<MapboxDraw | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
 
   const token = import.meta.env.VITE_MAPBOX_TOKEN
@@ -63,6 +69,10 @@ export function MapboxMap({ points }: MapboxMapProps) {
 
     return () => {
       popupRef.current?.remove()
+      if (drawRef.current && map) {
+        try { map.removeControl(drawRef.current as unknown as mapboxgl.IControl) } catch { /* already removed */ }
+        drawRef.current = null
+      }
       map.remove()
       mapRef.current = null
     }
@@ -89,7 +99,7 @@ export function MapboxMap({ points }: MapboxMapProps) {
     })),
   }), [points])
 
-  // Update data when map is ready or points change
+  // Update telematics data when map is ready or points change
   useEffect(() => {
     if (!isLoaded || !mapRef.current) return
     const map = mapRef.current
@@ -162,6 +172,127 @@ export function MapboxMap({ points }: MapboxMapProps) {
       map.getCanvas().style.cursor = ''
     })
   }, [isLoaded, buildGeoJSON])
+
+  // Render geofence polygons
+  useEffect(() => {
+    if (!isLoaded || !mapRef.current) return
+    const map = mapRef.current
+
+    const geofenceGeoJSON: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: geofences
+        .filter(g => g.polygon)
+        .map(g => ({
+          type: 'Feature' as const,
+          properties: { name: g.name, id: g.id },
+          geometry: g.polygon!,
+        })),
+    }
+
+    const source = map.getSource('geofences') as mapboxgl.GeoJSONSource | undefined
+    if (source) {
+      source.setData(geofenceGeoJSON)
+      return
+    }
+
+    map.addSource('geofences', { type: 'geojson', data: geofenceGeoJSON })
+
+    map.addLayer({
+      id: 'geofence-fill',
+      type: 'fill',
+      source: 'geofences',
+      paint: {
+        'fill-color': 'rgba(249,115,22,0.15)',
+      },
+    }, 'telematics-dots') // insert below dots
+
+    map.addLayer({
+      id: 'geofence-outline',
+      type: 'line',
+      source: 'geofences',
+      paint: {
+        'line-color': '#f97316',
+        'line-width': 2,
+      },
+    }, 'telematics-dots')
+
+    map.addLayer({
+      id: 'geofence-labels',
+      type: 'symbol',
+      source: 'geofences',
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-size': 12,
+        'text-anchor': 'center',
+      },
+      paint: {
+        'text-color': '#f97316',
+        'text-halo-color': '#0f172a',
+        'text-halo-width': 1.5,
+      },
+    })
+  }, [isLoaded, geofences])
+
+  // Draw mode management
+  useEffect(() => {
+    if (!isLoaded || !mapRef.current) return
+    const map = mapRef.current
+
+    if (drawMode) {
+      if (!drawRef.current) {
+        const draw = new MapboxDraw({
+          displayControlsDefault: false,
+          defaultMode: 'draw_polygon',
+          styles: [
+            // Polygon fill while drawing
+            {
+              id: 'gl-draw-polygon-fill',
+              type: 'fill',
+              filter: ['all', ['==', '$type', 'Polygon']],
+              paint: { 'fill-color': 'rgba(249,115,22,0.2)', 'fill-outline-color': '#f97316' },
+            },
+            // Polygon outline while drawing
+            {
+              id: 'gl-draw-polygon-stroke',
+              type: 'line',
+              filter: ['all', ['==', '$type', 'Polygon']],
+              paint: { 'line-color': '#f97316', 'line-width': 2 },
+            },
+            // Vertices
+            {
+              id: 'gl-draw-point',
+              type: 'circle',
+              filter: ['all', ['==', '$type', 'Point']],
+              paint: { 'circle-radius': 5, 'circle-color': '#f97316' },
+            },
+            // Lines while drawing
+            {
+              id: 'gl-draw-line',
+              type: 'line',
+              filter: ['all', ['==', '$type', 'LineString']],
+              paint: { 'line-color': '#f97316', 'line-width': 2, 'line-dasharray': [2, 2] },
+            },
+          ],
+        })
+        map.addControl(draw as unknown as mapboxgl.IControl, 'top-left')
+        drawRef.current = draw
+
+        map.on('draw.create', (e: { features: GeoJSON.Feature[] }) => {
+          const feature = e.features[0]
+          if (feature?.geometry.type === 'Polygon') {
+            onDrawComplete?.(feature.geometry as GeoJSON.Polygon)
+          }
+        })
+      }
+    } else {
+      // Remove draw control when draw mode is off
+      if (drawRef.current) {
+        try { map.removeControl(drawRef.current as unknown as mapboxgl.IControl) } catch { /* ok */ }
+        drawRef.current = null
+        onDrawCancel?.()
+      }
+    }
+  }, [isLoaded, drawMode, onDrawComplete, onDrawCancel])
 
   return <div ref={containerRef} className="w-full h-full" />
 }
