@@ -65,6 +65,10 @@ export interface TelematicsSnapshot {
   isLocationStale: boolean
   engineStatus: string
   snapshotAt: string
+  // Joined from Equipment table for popup display
+  make?: string
+  model?: string
+  equipmentDescription?: string
 }
 
 export interface CrewAssignment {

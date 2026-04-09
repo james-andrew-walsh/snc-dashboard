@@ -24,7 +24,7 @@ export function Overview() {
 
   useEffect(() => {
     async function fetchData() {
-      const [eqRes, jobRes, dispRes, telRes] = await Promise.all([
+      const [eqRes, jobRes, dispRes, telRes, eqDetailRes] = await Promise.all([
         supabase.from('Equipment').select('id', { count: 'exact', head: true }),
         supabase.from('Job').select('id', { count: 'exact', head: true }),
         supabase.from('DispatchEvent').select('id', { count: 'exact', head: true }),
@@ -35,19 +35,32 @@ export function Overview() {
           .not('longitude', 'is', null)
           .order('snapshotAt', { ascending: false })
           .limit(5000),
+        supabase.from('Equipment').select('code, make, model, description'),
       ])
 
       setEquipmentCount(eqRes.count ?? 0)
       setJobCount(jobRes.count ?? 0)
       setDispatchCount(dispRes.count ?? 0)
 
-      // Deduplicate: keep latest snapshot per equipmentCode
+      // Build make/model lookup by equipment code
+      const eqLookup = new Map<string, { make: string; model: string; description: string }>()
+      for (const eq of (eqDetailRes.data ?? []) as { code: string; make: string; model: string; description: string }[]) {
+        eqLookup.set(eq.code, { make: eq.make ?? '', model: eq.model ?? '', description: eq.description ?? '' })
+      }
+
+      // Deduplicate: keep latest snapshot per equipmentCode, attach make/model
       const seen = new Set<string>()
       const latest: TelematicsSnapshot[] = []
       for (const row of (telRes.data ?? []) as TelematicsSnapshot[]) {
         if (!seen.has(row.equipmentCode)) {
           seen.add(row.equipmentCode)
-          latest.push(row)
+          const eq = eqLookup.get(row.equipmentCode)
+          latest.push({
+            ...row,
+            make: eq?.make ?? '',
+            model: eq?.model ?? '',
+            equipmentDescription: eq?.description ?? '',
+          } as TelematicsSnapshot)
         }
       }
       setTelematicsPoints(latest)

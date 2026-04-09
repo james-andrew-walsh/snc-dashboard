@@ -78,6 +78,9 @@ export function MapboxMap({ points }: MapboxMapProps) {
         engineStatus: p.engineStatus,
         isLocationStale: p.isLocationStale,
         locationDateTime: p.locationDateTime,
+        make: p.make ?? '',
+        model: p.model ?? '',
+        equipmentDescription: p.equipmentDescription ?? '',
       },
       geometry: {
         type: 'Point' as const,
@@ -133,12 +136,15 @@ export function MapboxMap({ points }: MapboxMapProps) {
 
       const stale = props.isLocationStale === true || props.isLocationStale === 'true'
       const statusColor = props.engineStatus === 'Active' ? '#22c55e' : '#6b7280'
+      const makeModel = [props.make, props.model].filter(Boolean).join(' ')
+      const label = makeModel || props.equipmentDescription || ''
 
-      const html = `<div style="color:#1e293b;font-size:13px;line-height:1.5">
-        <strong>${props.equipmentCode}</strong><br/>
+      const html = `<div style="color:#1e293b;font-size:13px;line-height:1.6">
+        ${label ? `<div style="font-weight:600;margin-bottom:2px">${label}</div>` : ''}
+        <div style="color:#475569">${props.equipmentCode}</div>
         Engine: <span style="color:${statusColor};font-weight:600">${props.engineStatus === 'Active' ? 'Active' : 'Off'}</span><br/>
         GPS: ${formatGpsTime(props.locationDateTime)}
-        ${stale ? '<br/><span style="color:#f59e0b">&#9888;&#65039; GPS stale</span>' : ''}
+        ${stale ? '<br/><span style="color:#f59e0b">&#9888; GPS stale</span>' : ''}
       </div>`
 
       popupRef.current?.remove()
