@@ -12,6 +12,13 @@ interface ActivityItem {
   timestamp: Date
 }
 
+function polygonToWKT(polygon: GeoJSON.Polygon): string {
+  const coords = polygon.coordinates[0]
+    .map(([lng, lat]) => `${lng} ${lat}`)
+    .join(', ')
+  return `SRID=4326;POLYGON((${coords}))`
+}
+
 export function Overview() {
   const [equipmentCount, setEquipmentCount] = useState(0)
   const [jobCount, setJobCount] = useState(0)
@@ -190,6 +197,7 @@ export function Overview() {
             name: newName.trim(),
             description: newDescription.trim() || null,
             polygon: drawnPolygon,
+            geom: drawnPolygon ? polygonToWKT(drawnPolygon) : null,
             centerLat,
             centerLng,
           })
@@ -232,6 +240,7 @@ export function Overview() {
             name: newName.trim(),
             description: newDescription.trim() || null,
             polygon: drawnPolygon,
+            geom: drawnPolygon ? polygonToWKT(drawnPolygon) : null,
             centerLat,
             centerLng,
           })
