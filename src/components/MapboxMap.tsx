@@ -281,6 +281,8 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
           const feature = e.features[0]
           if (feature?.geometry.type === 'Polygon') {
             onDrawComplete?.(feature.geometry as GeoJSON.Polygon)
+            // Switch to select mode so polygon stays visible; parent will set drawMode=false
+            draw.changeMode('simple_select')
           }
         })
       }
