@@ -281,16 +281,19 @@ export function MapboxMap({ points, geofences = [], drawMode = false, hasDrawnPo
         map.on('draw.create', (e: { features: GeoJSON.Feature[] }) => {
           const feature = e.features[0]
           if (feature?.geometry.type === 'Polygon') {
-            onDrawComplete?.(feature.geometry as GeoJSON.Polygon)
-            // Switch to select mode so polygon stays visible; parent will set drawMode=false
+            // Switch to simple_select FIRST so polygon stays on screen
             draw.changeMode('simple_select')
+            // Then notify parent (parent sets drawMode=false, which will trigger
+            // the else branch below — but by then draw control is in simple_select
+            // and the polygon is visible. We defer removal to the hasDrawnPolygon effect.)
+            onDrawComplete?.(feature.geometry as GeoJSON.Polygon)
           }
         })
       }
     } else {
-      // Only remove draw control if there is no drawn polygon waiting to be saved.
-      // If a polygon was drawn, keep the draw control alive in simple_select mode
-      // so it stays visible until the geofences layer renders the saved polygon.
+      // drawMode turned off
+      // Only remove draw control if we don't have a drawn polygon waiting to be saved.
+      // If hasDrawnPolygon is true, the separate effect below handles removal after save.
       if (drawRef.current && !hasDrawnPolygon) {
         try { map.removeControl(drawRef.current as unknown as mapboxgl.IControl) } catch { /* ok */ }
         drawRef.current = null
@@ -298,6 +301,15 @@ export function MapboxMap({ points, geofences = [], drawMode = false, hasDrawnPo
       }
     }
   }, [isLoaded, drawMode, hasDrawnPolygon, onDrawComplete, onDrawCancel])
+
+  // Remove draw control after save/redraw clears the drawn polygon
+  useEffect(() => {
+    if (!isLoaded || !mapRef.current) return
+    if (!hasDrawnPolygon && !drawMode && drawRef.current) {
+      try { mapRef.current.removeControl(drawRef.current as unknown as mapboxgl.IControl) } catch { /* ok */ }
+      drawRef.current = null
+    }
+  }, [isLoaded, hasDrawnPolygon, drawMode])
 
   return <div ref={containerRef} className="w-full h-full" />
 }
