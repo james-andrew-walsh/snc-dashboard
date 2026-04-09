@@ -57,6 +57,16 @@ export interface DispatchEvent {
   notes: string
 }
 
+export interface TelematicsSnapshot {
+  equipmentCode: string
+  latitude: number
+  longitude: number
+  locationDateTime: string | null
+  isLocationStale: boolean
+  engineStatus: string
+  snapshotAt: string
+}
+
 export interface CrewAssignment {
   id: string
   jobId: string

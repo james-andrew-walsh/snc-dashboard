@@ -1,28 +1,35 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import type { Location, DispatchEvent, Equipment, Job, Employee } from '../lib/types'
+import type { TelematicsSnapshot } from '../lib/types'
 
 interface MapboxMapProps {
-  locations: Location[]
-  activeDispatches: DispatchEvent[]
-  equipment: Equipment[]
-  jobs: Job[]
-  employees: Employee[]
+  points: TelematicsSnapshot[]
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  'Available': '#3b82f6',
-  'In Use': '#22c55e',
-  'Down': '#ef4444',
+function formatGpsTime(dateStr: string | null): string {
+  if (!dateStr) return 'Unknown'
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+
+  if (diffHours < 1) {
+    const diffMin = Math.floor(diffMs / (1000 * 60))
+    return diffMin <= 0 ? 'Just now' : `${diffMin} min ago`
+  }
+  if (diffHours < 24) return `${diffHours} hours ago`
+
+  // Different day — show date + time
+  return date.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  })
 }
 
-export function MapboxMap({ locations, activeDispatches, equipment, jobs, employees }: MapboxMapProps) {
+export function MapboxMap({ points }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
-  const markersRef = useRef<mapboxgl.Marker[]>([])
-  const addedLayersRef = useRef<string[]>([])
-  const addedSourcesRef = useRef<string[]>([])
+  const popupRef = useRef<mapboxgl.Popup | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
 
   const token = import.meta.env.VITE_MAPBOX_TOKEN
@@ -38,7 +45,7 @@ export function MapboxMap({ locations, activeDispatches, equipment, jobs, employ
     )
   }
 
-  // Effect 1: initialize map once
+  // Initialize map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
@@ -48,198 +55,107 @@ export function MapboxMap({ locations, activeDispatches, equipment, jobs, employ
       container: containerRef.current,
       style: 'mapbox://styles/mapbox/dark-v11',
       center: [-119.8138, 39.5296],
-      zoom: 10,
+      zoom: 11,
     })
     mapRef.current = map
-
     map.addControl(new mapboxgl.NavigationControl(), 'top-right')
-
     map.on('load', () => setIsLoaded(true))
 
     return () => {
-      markersRef.current.forEach((m) => m.remove())
-      markersRef.current = []
+      popupRef.current?.remove()
       map.remove()
       mapRef.current = null
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Effect 2: render data when map is ready and data has arrived
+  // Build GeoJSON from points
+  const buildGeoJSON = useCallback((): GeoJSON.FeatureCollection => ({
+    type: 'FeatureCollection',
+    features: points.map((p) => ({
+      type: 'Feature' as const,
+      properties: {
+        equipmentCode: p.equipmentCode,
+        engineStatus: p.engineStatus,
+        isLocationStale: p.isLocationStale,
+        locationDateTime: p.locationDateTime,
+      },
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [p.longitude, p.latitude],
+      },
+    })),
+  }), [points])
+
+  // Update data when map is ready or points change
   useEffect(() => {
     if (!isLoaded || !mapRef.current) return
     const map = mapRef.current
+    const geojson = buildGeoJSON()
 
-    // Remove existing layers then sources
-    for (const layerId of addedLayersRef.current) {
-      if (map.getLayer(layerId)) map.removeLayer(layerId)
+    const source = map.getSource('telematics') as mapboxgl.GeoJSONSource | undefined
+    if (source) {
+      source.setData(geojson)
+      return
     }
-    for (const sourceId of addedSourcesRef.current) {
-      if (map.getSource(sourceId)) map.removeSource(sourceId)
-    }
-    addedLayersRef.current = []
-    addedSourcesRef.current = []
 
-    // Add geofence polygons
-    locations.forEach((loc) => {
-      if (!loc.geofence || !loc.latitude || !loc.longitude) return
+    // First render — add source + layer
+    map.addSource('telematics', { type: 'geojson', data: geojson })
 
-      const sourceId = `geofence-${loc.id}`
-      const fillId = `${sourceId}-fill`
-      const lineId = `${sourceId}-line`
-
-      map.addSource(sourceId, {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'Polygon',
-            coordinates: [loc.geofence],
-          },
-        } as GeoJSON.Feature,
-      })
-      addedSourcesRef.current.push(sourceId)
-
-      map.addLayer({
-        id: fillId,
-        type: 'fill',
-        source: sourceId,
-        paint: {
-          'fill-color': 'rgba(249, 115, 22, 0.15)',
-          'fill-outline-color': 'rgb(249, 115, 22)',
-        },
-      })
-      addedLayersRef.current.push(fillId)
-
-      map.addLayer({
-        id: lineId,
-        type: 'line',
-        source: sourceId,
-        paint: {
-          'line-color': 'rgb(249, 115, 22)',
-          'line-width': 2,
-        },
-      })
-      addedLayersRef.current.push(lineId)
+    map.addLayer({
+      id: 'telematics-dots',
+      type: 'circle',
+      source: 'telematics',
+      paint: {
+        'circle-radius': 5,
+        'circle-color': [
+          'case',
+          ['==', ['get', 'engineStatus'], 'Active'],
+          '#22c55e',
+          '#6b7280',
+        ],
+        'circle-opacity': [
+          'case',
+          ['get', 'isLocationStale'],
+          0.4,
+          1,
+        ],
+        'circle-stroke-width': 1,
+        'circle-stroke-color': '#0f172a',
+      },
     })
 
-    // Add location labels
-    const labelFeatures: GeoJSON.Feature[] = locations
-      .filter((loc) => loc.latitude && loc.longitude)
-      .map((loc) => ({
-        type: 'Feature' as const,
-        properties: { code: loc.code },
-        geometry: {
-          type: 'Point' as const,
-          coordinates: [loc.longitude!, loc.latitude!],
-        },
-      }))
+    // Click handler for popups
+    map.on('click', 'telematics-dots', (e) => {
+      if (!e.features?.length) return
+      const feat = e.features[0]
+      const props = feat.properties!
+      const coords = (feat.geometry as GeoJSON.Point).coordinates.slice() as [number, number]
 
-    if (labelFeatures.length > 0) {
-      map.addSource('location-labels', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: labelFeatures },
-      })
-      addedSourcesRef.current.push('location-labels')
+      const stale = props.isLocationStale === true || props.isLocationStale === 'true'
+      const statusColor = props.engineStatus === 'Active' ? '#22c55e' : '#6b7280'
 
-      map.addLayer({
-        id: 'location-labels-text',
-        type: 'symbol',
-        source: 'location-labels',
-        layout: {
-          'text-field': ['get', 'code'],
-          'text-size': 12,
-          'text-offset': [0, -1.5],
-          'text-anchor': 'bottom',
-        },
-        paint: {
-          'text-color': '#f97316',
-          'text-halo-color': '#0f172a',
-          'text-halo-width': 1.5,
-        },
-      })
-      addedLayersRef.current.push('location-labels-text')
-    }
+      const html = `<div style="color:#1e293b;font-size:13px;line-height:1.5">
+        <strong>${props.equipmentCode}</strong><br/>
+        Engine: <span style="color:${statusColor};font-weight:600">${props.engineStatus === 'Active' ? 'Active' : 'Off'}</span><br/>
+        GPS: ${formatGpsTime(props.locationDateTime)}
+        ${stale ? '<br/><span style="color:#f59e0b">&#9888;&#65039; GPS stale</span>' : ''}
+      </div>`
 
-    // Add equipment markers
-    markersRef.current.forEach((m) => m.remove())
-    markersRef.current = []
-
-    const equipMap = new Map(equipment.map((e) => [e.id, e]))
-    const jobMap = new Map(jobs.map((j) => [j.id, j]))
-    const locMap = new Map(locations.map((l) => [l.id, l]))
-    const empMap = new Map(employees.map((e) => [e.id, e]))
-
-    // Step 1: Group equipment by location
-    const locationGroups = new Map<string, Array<{ equip: Equipment; loc: Location; operator: Employee | undefined; dispatch: DispatchEvent }>>()
-
-    activeDispatches.forEach((dispatch) => {
-      const equip = equipMap.get(dispatch.equipmentId)
-      if (!equip) return
-
-      // Resolve location: either via Job → locationId, or directly via dispatch.locationId
-      let loc: Location | null = null
-      if (dispatch.jobId) {
-        const job = jobMap.get(dispatch.jobId)
-        if (job?.locationId) loc = locMap.get(job.locationId) ?? null
-      } else if (dispatch.locationId) {
-        loc = locMap.get(dispatch.locationId) ?? null
-      }
-      if (!loc || !loc.latitude || !loc.longitude) return
-
-      const operator = empMap.get(dispatch.operatorId)
-      const group = locationGroups.get(loc.id) ?? []
-      group.push({ equip, loc, operator, dispatch })
-      locationGroups.set(loc.id, group)
+      popupRef.current?.remove()
+      popupRef.current = new mapboxgl.Popup({ offset: 8, closeButton: false })
+        .setLngLat(coords)
+        .setHTML(html)
+        .addTo(map)
     })
 
-    // Step 2: For each location group, calculate grid positions and place markers
-    const SPACING = 0.0003 // ~30 meters per cell
-    const COLS = 4
-
-    for (const [, items] of locationGroups) {
-      const count = items.length
-      const totalCols = Math.min(count, COLS)
-      const totalRows = Math.ceil(count / COLS)
-      const startLng = items[0].loc.longitude! - (totalCols - 1) * SPACING / 2
-      const startLat = items[0].loc.latitude! + (totalRows - 1) * SPACING / 2
-
-      items.forEach((item, index) => {
-        const col = index % COLS
-        const row = Math.floor(index / COLS)
-        const lng = startLng + col * SPACING
-        const lat = startLat - row * SPACING
-
-        const color = STATUS_COLORS[item.equip.status] ?? '#6b7280'
-
-        // Create colored marker element
-        const el = document.createElement('div')
-        el.style.width = '14px'
-        el.style.height = '14px'
-        el.style.borderRadius = '50%'
-        el.style.backgroundColor = color
-        el.style.border = '2px solid white'
-        el.style.cursor = 'pointer'
-        el.style.boxShadow = '0 0 4px rgba(0,0,0,0.5)'
-
-        const popup = new mapboxgl.Popup({ offset: 12, closeButton: false }).setHTML(
-          `<div style="color:#1e293b;font-size:13px;line-height:1.4">
-            <strong>${item.equip.make} ${item.equip.model}</strong> (${item.equip.code})<br/>
-            Status: <span style="color:${color};font-weight:600">${item.equip.status}</span><br/>
-            Location: ${item.loc.code}<br/>
-            ${item.operator ? `Operator: ${item.operator.firstName} ${item.operator.lastName}` : 'Operator: —'}
-          </div>`
-        )
-
-        const marker = new mapboxgl.Marker({ element: el })
-          .setLngLat([lng, lat])
-          .setPopup(popup)
-          .addTo(map)
-
-        markersRef.current.push(marker)
-      })
-    }
-  }, [isLoaded, locations, activeDispatches, equipment, jobs, employees])
+    // Pointer cursor on hover
+    map.on('mouseenter', 'telematics-dots', () => {
+      map.getCanvas().style.cursor = 'pointer'
+    })
+    map.on('mouseleave', 'telematics-dots', () => {
+      map.getCanvas().style.cursor = ''
+    })
+  }, [isLoaded, buildGeoJSON])
 
   return <div ref={containerRef} className="w-full h-full" />
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { MetricCard } from '../components/MetricCard'
 import { MapboxMap } from '../components/MapboxMap'
-import type { Location, DispatchEvent, Equipment, Job, Employee } from '../lib/types'
+import type { TelematicsSnapshot } from '../lib/types'
 
 interface ActivityItem {
   id: string
@@ -19,50 +19,43 @@ export function Overview() {
   const [activity, setActivity] = useState<ActivityItem[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Data for map
-  const [locations, setLocations] = useState<Location[]>([])
-  const [equipment, setEquipment] = useState<Equipment[]>([])
-  const [jobs, setJobs] = useState<Job[]>([])
-  const [employees, setEmployees] = useState<Employee[]>([])
-  const [dispatches, setDispatches] = useState<DispatchEvent[]>([])
+  // Telematics data for map
+  const [telematicsPoints, setTelematicsPoints] = useState<TelematicsSnapshot[]>([])
 
   useEffect(() => {
     async function fetchData() {
-      const [eqRes, jobRes, dispRes, locRes, empRes] = await Promise.all([
-        supabase.from('Equipment').select('*'),
-        supabase.from('Job').select('*'),
-        supabase.from('DispatchEvent').select('*'),
-        supabase.from('Location').select('*'),
-        supabase.from('Employee').select('*'),
+      const [eqRes, jobRes, dispRes, telRes] = await Promise.all([
+        supabase.from('Equipment').select('id', { count: 'exact', head: true }),
+        supabase.from('Job').select('id', { count: 'exact', head: true }),
+        supabase.from('DispatchEvent').select('id', { count: 'exact', head: true }),
+        supabase
+          .from('TelematicsSnapshot')
+          .select('equipmentCode, latitude, longitude, locationDateTime, isLocationStale, engineStatus, snapshotAt')
+          .not('latitude', 'is', null)
+          .not('longitude', 'is', null)
+          .order('snapshotAt', { ascending: false })
+          .limit(5000),
       ])
 
-      const eqData = (eqRes.data ?? []) as Equipment[]
-      const jobData = (jobRes.data ?? []) as Job[]
-      const dispData = (dispRes.data ?? []) as DispatchEvent[]
-      const locData = (locRes.data ?? []) as Location[]
-      const empData = (empRes.data ?? []) as Employee[]
+      setEquipmentCount(eqRes.count ?? 0)
+      setJobCount(jobRes.count ?? 0)
+      setDispatchCount(dispRes.count ?? 0)
 
-      setEquipment(eqData)
-      setJobs(jobData)
-      setDispatches(dispData)
-      setLocations(locData)
-      setEmployees(empData)
+      // Deduplicate: keep latest snapshot per equipmentCode
+      const seen = new Set<string>()
+      const latest: TelematicsSnapshot[] = []
+      for (const row of (telRes.data ?? []) as TelematicsSnapshot[]) {
+        if (!seen.has(row.equipmentCode)) {
+          seen.add(row.equipmentCode)
+          latest.push(row)
+        }
+      }
+      setTelematicsPoints(latest)
 
-      setEquipmentCount(eqData.length)
-      setJobCount(jobData.length)
-      setDispatchCount(dispData.length)
       setLoading(false)
     }
     fetchData()
   }, [])
-
-  // Filter active dispatches client-side
-  const today = new Date().toISOString().slice(0, 10)
-  const activeDispatches = dispatches.filter((d) => {
-    if (d.startDate > today) return false
-    if (d.endDate && d.endDate < today) return false
-    return true
-  })
 
   // Realtime activity feed
   useEffect(() => {
@@ -83,7 +76,6 @@ export function Overview() {
             }
             setActivity(prev => [newItem, ...prev].slice(0, 20))
 
-            // Update counts on changes
             if (table === 'Equipment') {
               if (payload.eventType === 'INSERT') setEquipmentCount(c => c + 1)
               if (payload.eventType === 'DELETE') setEquipmentCount(c => c - 1)
@@ -95,33 +87,6 @@ export function Overview() {
             if (table === 'DispatchEvent') {
               if (payload.eventType === 'INSERT') setDispatchCount(c => c + 1)
               if (payload.eventType === 'DELETE') setDispatchCount(c => c - 1)
-            }
-
-            // Update map data arrays
-            if (table === 'DispatchEvent') {
-              if (payload.eventType === 'INSERT') setDispatches(prev => [...prev, payload.new as DispatchEvent])
-              if (payload.eventType === 'UPDATE') setDispatches(prev => prev.map(d => d.id === (payload.new as DispatchEvent).id ? payload.new as DispatchEvent : d))
-              if (payload.eventType === 'DELETE') setDispatches(prev => prev.filter(d => d.id !== (payload.old as {id: string}).id))
-            }
-            if (table === 'Equipment') {
-              if (payload.eventType === 'INSERT') setEquipment(prev => [...prev, payload.new as Equipment])
-              if (payload.eventType === 'UPDATE') setEquipment(prev => prev.map(e => e.id === (payload.new as Equipment).id ? payload.new as Equipment : e))
-              if (payload.eventType === 'DELETE') setEquipment(prev => prev.filter(e => e.id !== (payload.old as {id: string}).id))
-            }
-            if (table === 'Job') {
-              if (payload.eventType === 'INSERT') setJobs(prev => [...prev, payload.new as Job])
-              if (payload.eventType === 'UPDATE') setJobs(prev => prev.map(j => j.id === (payload.new as Job).id ? payload.new as Job : j))
-              if (payload.eventType === 'DELETE') setJobs(prev => prev.filter(j => j.id !== (payload.old as {id: string}).id))
-            }
-            if (table === 'Location') {
-              if (payload.eventType === 'INSERT') setLocations(prev => [...prev, payload.new as Location])
-              if (payload.eventType === 'UPDATE') setLocations(prev => prev.map(l => l.id === (payload.new as Location).id ? payload.new as Location : l))
-              if (payload.eventType === 'DELETE') setLocations(prev => prev.filter(l => l.id !== (payload.old as {id: string}).id))
-            }
-            if (table === 'Employee') {
-              if (payload.eventType === 'INSERT') setEmployees(prev => [...prev, payload.new as Employee])
-              if (payload.eventType === 'UPDATE') setEmployees(prev => prev.map(e => e.id === (payload.new as Employee).id ? payload.new as Employee : e))
-              if (payload.eventType === 'DELETE') setEmployees(prev => prev.filter(e => e.id !== (payload.old as {id: string}).id))
             }
           }
         )
@@ -173,13 +138,7 @@ export function Overview() {
 
       {/* Map */}
       <div className="h-[500px] rounded-lg overflow-hidden">
-        <MapboxMap
-          locations={locations}
-          activeDispatches={activeDispatches}
-          equipment={equipment}
-          jobs={jobs}
-          employees={employees}
-        />
+        <MapboxMap points={telematicsPoints} />
       </div>
 
       {/* Activity feed */}
