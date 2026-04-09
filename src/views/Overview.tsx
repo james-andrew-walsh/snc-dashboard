@@ -291,6 +291,7 @@ export function Overview() {
             points={telematicsPoints}
             geofences={siteLocations}
             drawMode={drawMode}
+            hasDrawnPolygon={!!drawnPolygon}
             onDrawComplete={handleDrawComplete}
             onDrawCancel={handleDrawCancel}
           />

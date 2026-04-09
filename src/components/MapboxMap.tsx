@@ -9,6 +9,7 @@ interface MapboxMapProps {
   points: TelematicsSnapshot[]
   geofences?: SiteLocation[]
   drawMode?: boolean
+  hasDrawnPolygon?: boolean  // true after draw.create fires — keep draw control alive until geofences layer takes over
   onDrawComplete?: (polygon: GeoJSON.Polygon) => void
   onDrawCancel?: () => void
 }
@@ -31,7 +32,7 @@ function formatGpsTime(dateStr: string | null): string {
   })
 }
 
-export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComplete, onDrawCancel }: MapboxMapProps) {
+export function MapboxMap({ points, geofences = [], drawMode = false, hasDrawnPolygon = false, onDrawComplete, onDrawCancel }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const popupRef = useRef<mapboxgl.Popup | null>(null)
@@ -287,14 +288,16 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
         })
       }
     } else {
-      // Remove draw control when draw mode is off
-      if (drawRef.current) {
+      // Only remove draw control if there is no drawn polygon waiting to be saved.
+      // If a polygon was drawn, keep the draw control alive in simple_select mode
+      // so it stays visible until the geofences layer renders the saved polygon.
+      if (drawRef.current && !hasDrawnPolygon) {
         try { map.removeControl(drawRef.current as unknown as mapboxgl.IControl) } catch { /* ok */ }
         drawRef.current = null
         onDrawCancel?.()
       }
     }
-  }, [isLoaded, drawMode, onDrawComplete, onDrawCancel])
+  }, [isLoaded, drawMode, hasDrawnPolygon, onDrawComplete, onDrawCancel])
 
   return <div ref={containerRef} className="w-full h-full" />
 }
