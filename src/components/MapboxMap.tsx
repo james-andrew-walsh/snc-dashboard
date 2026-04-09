@@ -241,39 +241,11 @@ export function MapboxMap({ points, geofences = [], drawMode = false, hasDrawnPo
 
     if (drawMode) {
       if (!drawRef.current) {
+        // Use default Mapbox Draw styles — custom style overrides break click-to-close
+        // and double-click-to-close by removing required active/inactive layer variants.
         const draw = new MapboxDraw({
           displayControlsDefault: false,
           defaultMode: 'draw_polygon',
-          styles: [
-            // Polygon fill while drawing
-            {
-              id: 'gl-draw-polygon-fill',
-              type: 'fill',
-              filter: ['all', ['==', '$type', 'Polygon']],
-              paint: { 'fill-color': 'rgba(249,115,22,0.2)', 'fill-outline-color': '#f97316' },
-            },
-            // Polygon outline while drawing
-            {
-              id: 'gl-draw-polygon-stroke',
-              type: 'line',
-              filter: ['all', ['==', '$type', 'Polygon']],
-              paint: { 'line-color': '#f97316', 'line-width': 2 },
-            },
-            // Vertices
-            {
-              id: 'gl-draw-point',
-              type: 'circle',
-              filter: ['all', ['==', '$type', 'Point']],
-              paint: { 'circle-radius': 5, 'circle-color': '#f97316' },
-            },
-            // Lines while drawing
-            {
-              id: 'gl-draw-line',
-              type: 'line',
-              filter: ['all', ['==', '$type', 'LineString']],
-              paint: { 'line-color': '#f97316', 'line-width': 2, 'line-dasharray': [2, 2] },
-            },
-          ],
         })
         map.addControl(draw as unknown as mapboxgl.IControl, 'top-left')
         drawRef.current = draw
