@@ -69,6 +69,8 @@ export interface TelematicsSnapshot {
   make?: string
   model?: string
   equipmentDescription?: string
+  // Reconciliation status from RPC
+  reconciliation_status?: string
 }
 
 export interface SiteLocation {

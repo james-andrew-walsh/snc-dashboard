@@ -91,6 +91,7 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
         make: p.make ?? '',
         model: p.model ?? '',
         equipmentDescription: p.equipmentDescription ?? '',
+        reconciliation_status: p.reconciliation_status ?? 'OUTSIDE',
       },
       geometry: {
         type: 'Point' as const,
@@ -132,8 +133,20 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
           0.4,
           1,
         ],
-        'circle-stroke-width': 1,
-        'circle-stroke-color': '#0f172a',
+        'circle-stroke-width': [
+          'match', ['get', 'reconciliation_status'],
+          'ANOMALY', 3,
+          'DISPUTED', 3,
+          'NOT_IN_EITHER', 3,
+          1,
+        ] as unknown as number,
+        'circle-stroke-color': [
+          'match', ['get', 'reconciliation_status'],
+          'ANOMALY', '#ef4444',
+          'DISPUTED', '#f59e0b',
+          'NOT_IN_EITHER', '#f97316',
+          '#0f172a',
+        ] as unknown as string,
       },
     })
 

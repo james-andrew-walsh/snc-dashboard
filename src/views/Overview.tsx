@@ -55,18 +55,11 @@ export function Overview() {
 
   useEffect(() => {
     async function fetchData() {
-      const [eqRes, jobRes, dispRes, telRes, eqDetailRes, siteLocRes, siteLocJobRes] = await Promise.all([
+      const [eqRes, jobRes, dispRes, reconRes, siteLocRes, siteLocJobRes] = await Promise.all([
         supabase.from('Equipment').select('id', { count: 'exact', head: true }),
         supabase.from('Job').select('id', { count: 'exact', head: true }),
         supabase.from('DispatchEvent').select('id', { count: 'exact', head: true }),
-        supabase
-          .from('TelematicsSnapshot')
-          .select('equipmentCode, latitude, longitude, locationDateTime, isLocationStale, engineStatus, snapshotAt')
-          .not('latitude', 'is', null)
-          .not('longitude', 'is', null)
-          .order('snapshotAt', { ascending: false })
-          .limit(5000),
-        supabase.from('Equipment').select('code, make, model, description'),
+        supabase.rpc('get_reconciliation_status'),
         supabase.from('SiteLocation').select('*').order('createdAt', { ascending: false }),
         supabase.from('SiteLocationJob').select('*'),
       ])
@@ -75,28 +68,21 @@ export function Overview() {
       setJobCount(jobRes.count ?? 0)
       setDispatchCount(dispRes.count ?? 0)
 
-      // Build make/model lookup by equipment code
-      const eqLookup = new Map<string, { make: string; model: string; description: string }>()
-      for (const eq of (eqDetailRes.data ?? []) as { code: string; make: string; model: string; description: string }[]) {
-        eqLookup.set(eq.code, { make: eq.make ?? '', model: eq.model ?? '', description: eq.description ?? '' })
-      }
-
-      // Deduplicate: keep latest snapshot per equipmentCode, attach make/model
-      const seen = new Set<string>()
-      const latest: TelematicsSnapshot[] = []
-      for (const row of (telRes.data ?? []) as TelematicsSnapshot[]) {
-        if (!seen.has(row.equipmentCode)) {
-          seen.add(row.equipmentCode)
-          const eq = eqLookup.get(row.equipmentCode)
-          latest.push({
-            ...row,
-            make: eq?.make ?? '',
-            model: eq?.model ?? '',
-            equipmentDescription: eq?.description ?? '',
-          } as TelematicsSnapshot)
-        }
-      }
-      setTelematicsPoints(latest)
+      // Map RPC rows to TelematicsSnapshot shape
+      const points: TelematicsSnapshot[] = ((reconRes.data ?? []) as Record<string, unknown>[]).map(row => ({
+        equipmentCode: row.equipmentCode as string,
+        latitude: row.latitude as number,
+        longitude: row.longitude as number,
+        locationDateTime: (row.locationDateTime as string) ?? null,
+        isLocationStale: row.isLocationStale as boolean,
+        engineStatus: row.engineStatus as string,
+        snapshotAt: row.snapshotAt as string,
+        make: (row.make as string) ?? '',
+        model: (row.model as string) ?? '',
+        equipmentDescription: (row.description as string) ?? '',
+        reconciliation_status: (row.reconciliation_status as string) ?? 'OUTSIDE',
+      }))
+      setTelematicsPoints(points)
       setSiteLocations((siteLocRes.data ?? []) as SiteLocation[])
       setSiteLocationJobs((siteLocJobRes.data ?? []) as SiteLocationJob[])
 
