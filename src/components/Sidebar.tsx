@@ -1,6 +1,7 @@
-import { type ReactNode } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
 
-export type ViewId = 'magnet-board' | 'overview' | 'business-units' | 'jobs-locations' | 'equipment' | 'employees' | 'crew-assignments' | 'dispatch' | 'admin'
+export type ViewId = 'magnet-board' | 'overview' | 'business-units' | 'jobs-locations' | 'equipment' | 'employees' | 'crew-assignments' | 'dispatch' | 'discrepancies' | 'admin'
 
 interface NavItem {
   id: ViewId
@@ -17,6 +18,7 @@ const navItems: NavItem[] = [
   { id: 'employees', label: 'Employees', icon: <EmployeesIcon /> },
   { id: 'crew-assignments', label: 'Crew Assignments', icon: <CrewIcon /> },
   { id: 'dispatch', label: 'Dispatch Schedule', icon: <DispatchIcon /> },
+  { id: 'discrepancies', label: 'Discrepancies', icon: <DiscrepanciesIcon /> },
 ]
 
 interface SidebarProps {
@@ -28,6 +30,19 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeView, onNavigate, isOpen, onClose, role }: SidebarProps) {
+  const [anomalyCount, setAnomalyCount] = useState(0)
+
+  useEffect(() => {
+    supabase.rpc('get_reconciliation_status').then(({ data }) => {
+      const rows = (data ?? []) as Record<string, unknown>[]
+      const count = rows.filter(r => {
+        const s = r.reconciliation_status as string
+        return s && s !== 'OK' && s !== 'OUTSIDE'
+      }).length
+      setAnomalyCount(count)
+    })
+  }, [])
+
   return (
     <>
       {/* Mobile overlay */}
@@ -75,6 +90,11 @@ export function Sidebar({ activeView, onNavigate, isOpen, onClose, role }: Sideb
             >
               <span className="w-5 h-5 flex-shrink-0">{item.icon}</span>
               {item.label}
+              {item.id === 'discrepancies' && anomalyCount > 0 && (
+                <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white leading-none">
+                  {anomalyCount}
+                </span>
+              )}
             </button>
           ))}
 
@@ -173,6 +193,14 @@ function DispatchIcon() {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
       <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+    </svg>
+  )
+}
+
+function DiscrepanciesIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+      <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
     </svg>
   )
 }

@@ -13,6 +13,7 @@ import { Employees } from './views/Employees'
 import { CrewAssignments } from './views/CrewAssignments'
 import { DispatchSchedule } from './views/DispatchSchedule'
 import { MagnetBoard } from './views/MagnetBoard'
+import { Discrepancies } from './views/Discrepancies'
 
 const views: Record<ViewId, React.FC> = {
   'magnet-board': MagnetBoard,
@@ -23,6 +24,7 @@ const views: Record<ViewId, React.FC> = {
   'employees': Employees,
   'crew-assignments': CrewAssignments,
   'dispatch': DispatchSchedule,
+  'discrepancies': Discrepancies,
   'admin': Admin,
 }
 
