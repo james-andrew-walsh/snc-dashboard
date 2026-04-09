@@ -9,7 +9,6 @@ interface MapboxMapProps {
   points: TelematicsSnapshot[]
   geofences?: SiteLocation[]
   drawMode?: boolean
-  hasDrawnPolygon?: boolean  // true after draw.create fires — keep draw control alive until geofences layer takes over
   onDrawComplete?: (polygon: GeoJSON.Polygon) => void
   onDrawCancel?: () => void
 }
@@ -32,7 +31,7 @@ function formatGpsTime(dateStr: string | null): string {
   })
 }
 
-export function MapboxMap({ points, geofences = [], drawMode = false, hasDrawnPolygon = false, onDrawComplete, onDrawCancel }: MapboxMapProps) {
+export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComplete, onDrawCancel }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const popupRef = useRef<mapboxgl.Popup | null>(null)
@@ -241,11 +240,39 @@ export function MapboxMap({ points, geofences = [], drawMode = false, hasDrawnPo
 
     if (drawMode) {
       if (!drawRef.current) {
-        // Use default Mapbox Draw styles — custom style overrides break click-to-close
-        // and double-click-to-close by removing required active/inactive layer variants.
         const draw = new MapboxDraw({
           displayControlsDefault: false,
           defaultMode: 'draw_polygon',
+          styles: [
+            // Polygon fill while drawing
+            {
+              id: 'gl-draw-polygon-fill',
+              type: 'fill',
+              filter: ['all', ['==', '$type', 'Polygon']],
+              paint: { 'fill-color': 'rgba(249,115,22,0.2)', 'fill-outline-color': '#f97316' },
+            },
+            // Polygon outline while drawing
+            {
+              id: 'gl-draw-polygon-stroke',
+              type: 'line',
+              filter: ['all', ['==', '$type', 'Polygon']],
+              paint: { 'line-color': '#f97316', 'line-width': 2 },
+            },
+            // Vertices
+            {
+              id: 'gl-draw-point',
+              type: 'circle',
+              filter: ['all', ['==', '$type', 'Point']],
+              paint: { 'circle-radius': 5, 'circle-color': '#f97316' },
+            },
+            // Lines while drawing
+            {
+              id: 'gl-draw-line',
+              type: 'line',
+              filter: ['all', ['==', '$type', 'LineString']],
+              paint: { 'line-color': '#f97316', 'line-width': 2, 'line-dasharray': [2, 2] },
+            },
+          ],
         })
         map.addControl(draw as unknown as mapboxgl.IControl, 'top-left')
         drawRef.current = draw
@@ -253,35 +280,19 @@ export function MapboxMap({ points, geofences = [], drawMode = false, hasDrawnPo
         map.on('draw.create', (e: { features: GeoJSON.Feature[] }) => {
           const feature = e.features[0]
           if (feature?.geometry.type === 'Polygon') {
-            // Switch to simple_select FIRST so polygon stays on screen
-            draw.changeMode('simple_select')
-            // Then notify parent (parent sets drawMode=false, which will trigger
-            // the else branch below — but by then draw control is in simple_select
-            // and the polygon is visible. We defer removal to the hasDrawnPolygon effect.)
             onDrawComplete?.(feature.geometry as GeoJSON.Polygon)
           }
         })
       }
     } else {
-      // drawMode turned off
-      // Only remove draw control if we don't have a drawn polygon waiting to be saved.
-      // If hasDrawnPolygon is true, the separate effect below handles removal after save.
-      if (drawRef.current && !hasDrawnPolygon) {
+      // Remove draw control when draw mode is off
+      if (drawRef.current) {
         try { map.removeControl(drawRef.current as unknown as mapboxgl.IControl) } catch { /* ok */ }
         drawRef.current = null
         onDrawCancel?.()
       }
     }
-  }, [isLoaded, drawMode, hasDrawnPolygon, onDrawComplete, onDrawCancel])
-
-  // Remove draw control after save/redraw clears the drawn polygon
-  useEffect(() => {
-    if (!isLoaded || !mapRef.current) return
-    if (!hasDrawnPolygon && !drawMode && drawRef.current) {
-      try { mapRef.current.removeControl(drawRef.current as unknown as mapboxgl.IControl) } catch { /* ok */ }
-      drawRef.current = null
-    }
-  }, [isLoaded, hasDrawnPolygon, drawMode])
+  }, [isLoaded, drawMode, onDrawComplete, onDrawCancel])
 
   return <div ref={containerRef} className="w-full h-full" />
 }

@@ -156,8 +156,7 @@ export function Overview() {
 
   const handleDrawComplete = useCallback((polygon: GeoJSON.Polygon) => {
     setDrawnPolygon(polygon)
-    // Do NOT set drawMode=false here — keep draw control alive showing the polygon.
-    // drawMode is cleared in resetForm() after save, which triggers draw control removal.
+    setDrawMode(false)
   }, [])
 
   const handleDrawCancel = useCallback(() => {
@@ -292,11 +291,10 @@ export function Overview() {
             points={telematicsPoints}
             geofences={siteLocations}
             drawMode={drawMode}
-            hasDrawnPolygon={!!drawnPolygon}
             onDrawComplete={handleDrawComplete}
             onDrawCancel={handleDrawCancel}
           />
-          {drawMode && !drawnPolygon && (
+          {drawMode && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-slate-900/90 text-orange-400 text-sm px-4 py-2 rounded-lg border border-orange-500/40 z-10">
               Click points to draw polygon. Double-click or click first point to close.
             </div>
