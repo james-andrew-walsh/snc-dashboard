@@ -205,8 +205,18 @@ export function Overview() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'SyncLog' },
-        (payload) => {
-          const log = payload.new as SyncLog
+        async (payload) => {
+          // Re-fetch the complete row instead of using payload.new directly
+          // (Realtime payload may arrive before all fields are written)
+          const { data: fullRow } = await supabase
+            .from('SyncLog')
+            .select('*')
+            .eq('id', payload.new.id)
+            .single()
+
+          if (!fullRow) return
+
+          const log = fullRow as SyncLog
           const item: ActivityItem = {
             id: log.id,
             type: 'sync',
