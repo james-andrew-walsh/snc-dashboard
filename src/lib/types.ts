@@ -69,8 +69,8 @@ export interface TelematicsSnapshot {
   make?: string
   model?: string
   equipmentDescription?: string
-  // Reconciliation status from RPC
-  reconciliation_status?: string
+  // Anomaly info (joined client-side from Anomaly table)
+  anomalyType?: string
   e360_job?: string | null
   e360_location?: string | null
   hj_job?: string | null
@@ -110,6 +110,27 @@ export interface SyncLog {
   errorMessage: string | null
   details: Record<string, unknown> | null
   completedAt: string
+}
+
+export interface Anomaly {
+  id: string
+  equipmentCode: string
+  equipmentHcssId: string | null
+  siteLocationId: string
+  anomalyType: 'ANOMALY_NO_HJ' | 'DISPUTED' | 'NOT_IN_EITHER'
+  severity: 'warning' | 'error' | 'info'
+  e360JobCode: string | null
+  e360LocationName: string | null
+  hjJobCode: string | null
+  hjJobDescription: string | null
+  engineStatus: string | null
+  hourMeter: number | null
+  latitude: number | null
+  longitude: number | null
+  detectedAt: string
+  resolvedAt: string | null
+  reconciliationRunId: string | null
+  SiteLocation?: { name: string }
 }
 
 export interface CrewAssignment {

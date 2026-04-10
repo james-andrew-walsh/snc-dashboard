@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { MetricCard } from '../components/MetricCard'
 import { MapboxMap } from '../components/MapboxMap'
-import type { TelematicsSnapshot, SiteLocation, SiteLocationJob, Job, SyncLog } from '../lib/types'
+import type { TelematicsSnapshot, SiteLocation, SiteLocationJob, Job, SyncLog, Anomaly } from '../lib/types'
 
 interface ActivityItem {
   id: string
@@ -93,11 +93,12 @@ export function Overview() {
 
   useEffect(() => {
     async function fetchData() {
-      const [eqRes, jobRes, dispRes, reconRes, siteLocRes, siteLocJobRes, latestSnapRes, syncLogRes] = await Promise.all([
+      const [eqRes, jobRes, dispRes, telRes, anomalyRes, siteLocRes, siteLocJobRes, latestSnapRes, syncLogRes] = await Promise.all([
         supabase.from('Equipment').select('id', { count: 'exact', head: true }),
         supabase.from('Job').select('id', { count: 'exact', head: true }),
         supabase.from('DispatchEvent').select('id', { count: 'exact', head: true }),
-        supabase.rpc('get_reconciliation_status'),
+        supabase.rpc('get_latest_telematics'),
+        supabase.from('Anomaly').select('*').is('resolvedAt', null),
         supabase.from('SiteLocation').select('*').order('createdAt', { ascending: false }),
         supabase.from('SiteLocationJob').select('*'),
         supabase.from('TelematicsSnapshot').select('snapshotAt').order('snapshotAt', { ascending: false }).limit(1).single(),
@@ -134,25 +135,34 @@ export function Overview() {
         setActivity(syncItems)
       }
 
-      // Map RPC rows to TelematicsSnapshot shape
-      const points: TelematicsSnapshot[] = ((reconRes.data ?? []) as Record<string, unknown>[]).map(row => ({
-        equipmentCode: row.equipmentCode as string,
-        latitude: row.latitude as number,
-        longitude: row.longitude as number,
-        locationDateTime: (row.locationDateTime as string) ?? null,
-        isLocationStale: row.isLocationStale as boolean,
-        engineStatus: row.engineStatus as string,
-        snapshotAt: row.snapshotAt as string,
-        make: (row.make as string) ?? '',
-        model: (row.model as string) ?? '',
-        equipmentDescription: (row.description as string) ?? '',
-        reconciliation_status: (row.reconciliation_status as string) ?? 'OUTSIDE',
-        e360_job: (row.e360_job as string) ?? null,
-        e360_location: (row.e360_location as string) ?? null,
-        hj_job: (row.hj_job as string) ?? null,
-        hj_job_description: (row.hj_job_description as string) ?? null,
-        hour_meter: (row.hour_meter as number) ?? null,
-      }))
+      // Build anomaly lookup by equipmentCode
+      const anomalies = (anomalyRes.data ?? []) as Anomaly[]
+      const anomalyMap = new Map<string, Anomaly>()
+      for (const a of anomalies) anomalyMap.set(a.equipmentCode, a)
+
+      // Map telematics RPC rows + anomaly join to TelematicsSnapshot shape
+      const points: TelematicsSnapshot[] = ((telRes.data ?? []) as Record<string, unknown>[]).map(row => {
+        const code = row.equipmentCode as string
+        const anomaly = anomalyMap.get(code)
+        return {
+          equipmentCode: code,
+          latitude: row.latitude as number,
+          longitude: row.longitude as number,
+          locationDateTime: (row.locationDateTime as string) ?? null,
+          isLocationStale: row.isLocationStale as boolean,
+          engineStatus: row.engineStatus as string,
+          snapshotAt: row.snapshotAt as string,
+          make: (row.make as string) ?? '',
+          model: (row.model as string) ?? '',
+          equipmentDescription: (row.description as string) ?? '',
+          anomalyType: anomaly?.anomalyType ?? undefined,
+          e360_job: anomaly?.e360JobCode ?? null,
+          e360_location: anomaly?.e360LocationName ?? null,
+          hj_job: anomaly?.hjJobCode ?? null,
+          hj_job_description: anomaly?.hjJobDescription ?? null,
+          hour_meter: anomaly?.hourMeter ?? null,
+        }
+      })
       setTelematicsPoints(points)
       setSiteLocations((siteLocRes.data ?? []) as SiteLocation[])
       setSiteLocationJobs((siteLocJobRes.data ?? []) as SiteLocationJob[])

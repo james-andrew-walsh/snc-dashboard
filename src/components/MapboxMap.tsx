@@ -91,7 +91,7 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
         make: p.make ?? '',
         model: p.model ?? '',
         equipmentDescription: p.equipmentDescription ?? '',
-        reconciliation_status: p.reconciliation_status ?? 'OUTSIDE',
+        anomalyType: p.anomalyType ?? '',
         e360_job: p.e360_job ?? '',
         e360_location: p.e360_location ?? '',
         hj_job: p.hj_job ?? '',
@@ -139,18 +139,18 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
           1,
         ],
         'circle-stroke-width': [
-          'match', ['get', 'reconciliation_status'],
-          'ANOMALY', 3,
+          'match', ['get', 'anomalyType'],
+          'ANOMALY_NO_HJ', 3,
           'DISPUTED', 3,
           'NOT_IN_EITHER', 3,
           1,
         ] as unknown as number,
         'circle-stroke-color': [
-          'match', ['get', 'reconciliation_status'],
-          'ANOMALY', '#ef4444',
-          'DISPUTED', '#f59e0b',
+          'match', ['get', 'anomalyType'],
+          'ANOMALY_NO_HJ', '#ef4444',
+          'DISPUTED', '#eab308',
           'NOT_IN_EITHER', '#f97316',
-          '#0f172a',
+          '#1e293b',
         ] as unknown as string,
       },
     })
@@ -167,20 +167,20 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
       const makeModel = [props.make, props.model].filter(Boolean).join(' ')
       const label = makeModel || props.equipmentDescription || ''
 
-      // Build reconciliation warning if applicable
+      // Build anomaly warning if applicable
       let reconHtml = ''
-      const reconStatus = props.reconciliation_status
+      const anomalyType = props.anomalyType
       const hourMeter = props.hour_meter != null ? Number(props.hour_meter) : null
       const hourMeterStr = hourMeter != null ? `${Math.round(hourMeter).toLocaleString()} hrs` : null
       const e360Loc = props.e360_location || null
 
-      if (reconStatus === 'ANOMALY') {
+      if (anomalyType === 'ANOMALY_NO_HJ') {
         const job = props.e360_job || 'unknown'
         let detail = `&#9888;&#65039; No HeavyJob authorization<br/>E360 assigns to: ${job}`
         if (e360Loc) detail += `<br/>E360 location: ${e360Loc}`
         if (hourMeterStr) detail += `<br/>Hour meter: ${hourMeterStr}`
         reconHtml = `<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;color:#f59e0b;font-size:12px">${detail}</div>`
-      } else if (reconStatus === 'DISPUTED') {
+      } else if (anomalyType === 'DISPUTED') {
         const e360 = props.e360_job || 'unknown'
         const hj = props.hj_job || 'unknown'
         const hjDesc = props.hj_job_description || ''
@@ -190,7 +190,7 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
         if (hjDesc) detail += ` &mdash; ${hjDesc}`
         if (hourMeterStr) detail += `<br/>Hour meter: ${hourMeterStr}`
         reconHtml = `<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;color:#f59e0b;font-size:12px">${detail}</div>`
-      } else if (reconStatus === 'NOT_IN_EITHER') {
+      } else if (anomalyType === 'NOT_IN_EITHER') {
         let detail = `&#9888;&#65039; Not in any system<br/>No E360 or HeavyJob record found`
         if (hourMeterStr) detail += `<br/>Hour meter: ${hourMeterStr}`
         detail += `<br/>GPS: ${formatGpsTime(props.locationDateTime)}`
