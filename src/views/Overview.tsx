@@ -2,13 +2,22 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { MetricCard } from '../components/MetricCard'
 import { MapboxMap } from '../components/MapboxMap'
-import type { TelematicsSnapshot, SiteLocation, SiteLocationJob, Job } from '../lib/types'
+import type { TelematicsSnapshot, SiteLocation, SiteLocationJob, Job, SyncLog } from '../lib/types'
 
 interface ActivityItem {
   id: string
-  table: string
-  action: string
-  description: string
+  type: 'change' | 'sync'
+  // Fields for change events
+  table?: string
+  action?: string
+  description?: string
+  // Fields for sync events
+  providerKey?: string
+  providerName?: string
+  status?: string
+  rowsInserted?: number | null
+  durationMs?: number | null
+  errorMessage?: string | null
   timestamp: Date
 }
 
@@ -21,6 +30,7 @@ function polygonToWKT(polygon: GeoJSON.Polygon): string {
 
 export function Overview() {
   const [equipmentCount, setEquipmentCount] = useState(0)
+  const [trackedCount, setTrackedCount] = useState(0)
   const [jobCount, setJobCount] = useState(0)
   const [dispatchCount, setDispatchCount] = useState(0)
   const [activity, setActivity] = useState<ActivityItem[]>([])
@@ -55,18 +65,45 @@ export function Overview() {
 
   useEffect(() => {
     async function fetchData() {
-      const [eqRes, jobRes, dispRes, reconRes, siteLocRes, siteLocJobRes] = await Promise.all([
+      const [eqRes, jobRes, dispRes, reconRes, siteLocRes, siteLocJobRes, latestSnapRes, syncLogRes] = await Promise.all([
         supabase.from('Equipment').select('id', { count: 'exact', head: true }),
         supabase.from('Job').select('id', { count: 'exact', head: true }),
         supabase.from('DispatchEvent').select('id', { count: 'exact', head: true }),
         supabase.rpc('get_reconciliation_status'),
         supabase.from('SiteLocation').select('*').order('createdAt', { ascending: false }),
         supabase.from('SiteLocationJob').select('*'),
+        supabase.from('TelematicsSnapshot').select('snapshotAt').order('snapshotAt', { ascending: false }).limit(1).single(),
+        supabase.from('SyncLog').select('*').order('completedAt', { ascending: false }).limit(10),
       ])
 
       setEquipmentCount(eqRes.count ?? 0)
       setJobCount(jobRes.count ?? 0)
       setDispatchCount(dispRes.count ?? 0)
+
+      // Equipment coverage: count distinct equipment in latest snapshot batch
+      if (latestSnapRes.data?.snapshotAt) {
+        const { count } = await supabase
+          .from('TelematicsSnapshot')
+          .select('equipmentCode', { count: 'exact', head: true })
+          .eq('snapshotAt', latestSnapRes.data.snapshotAt)
+        setTrackedCount(count ?? 0)
+      }
+
+      // Seed activity feed with recent sync log entries
+      if (syncLogRes.data) {
+        const syncItems: ActivityItem[] = (syncLogRes.data as SyncLog[]).map(log => ({
+          id: log.id,
+          type: 'sync',
+          providerKey: log.providerKey,
+          providerName: log.providerName,
+          status: log.status,
+          rowsInserted: log.rowsInserted,
+          durationMs: log.durationMs,
+          errorMessage: log.errorMessage,
+          timestamp: new Date(log.completedAt),
+        }))
+        setActivity(syncItems)
+      }
 
       // Map RPC rows to TelematicsSnapshot shape
       const points: TelematicsSnapshot[] = ((reconRes.data ?? []) as Record<string, unknown>[]).map(row => ({
@@ -108,12 +145,13 @@ export function Overview() {
           (payload) => {
             const newItem: ActivityItem = {
               id: crypto.randomUUID(),
+              type: 'change',
               table,
               action: payload.eventType,
               description: describeChange(table, payload.eventType, payload.new as Record<string, unknown>),
               timestamp: new Date(),
             }
-            setActivity(prev => [newItem, ...prev].slice(0, 20))
+            setActivity(prev => [newItem, ...prev].slice(0, 50))
 
             if (table === 'Equipment') {
               if (payload.eventType === 'INSERT') setEquipmentCount(c => c + 1)
@@ -132,8 +170,33 @@ export function Overview() {
         .subscribe()
     )
 
+    // SyncLog Realtime subscription
+    const syncChannel = supabase
+      .channel('sync-log-changes')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'SyncLog' },
+        (payload) => {
+          const log = payload.new as SyncLog
+          const item: ActivityItem = {
+            id: log.id,
+            type: 'sync',
+            providerKey: log.providerKey,
+            providerName: log.providerName,
+            status: log.status,
+            rowsInserted: log.rowsInserted,
+            durationMs: log.durationMs,
+            errorMessage: log.errorMessage,
+            timestamp: new Date(log.completedAt),
+          }
+          setActivity(prev => [item, ...prev].slice(0, 50))
+        }
+      )
+      .subscribe()
+
     return () => {
       channels.forEach(ch => supabase.removeChannel(ch))
+      supabase.removeChannel(syncChannel)
     }
   }, [])
 
@@ -325,18 +388,42 @@ export function Overview() {
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-slate-100">Overview</h2>
 
-      {/* Metric cards */}
+      {/* Equipment coverage stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <MetricCard
+          label="Tracked Equipment"
+          value={loading ? '—' : trackedCount}
+          color="green"
+          icon={
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+              <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+            </svg>
+          }
+        />
+        <MetricCard
+          label="Untracked Equipment"
+          value={loading ? '—' : equipmentCount - trackedCount}
+          color="orange"
+          icon={
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+            </svg>
+          }
+        />
         <MetricCard
           label="Total Equipment"
           value={loading ? '—' : equipmentCount}
-          color="orange"
+          color="blue"
           icon={
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
               <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V5zm0 4a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1V9z" clipRule="evenodd" />
             </svg>
           }
         />
+      </div>
+
+      {/* Metric cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard
           label="Active Jobs"
           value={loading ? '—' : jobCount}
@@ -601,17 +688,33 @@ export function Overview() {
               Listening for realtime changes...
             </div>
           ) : (
-            activity.map(item => (
-              <div key={item.id} className="px-5 py-3 flex items-start gap-3">
-                <ActionBadge action={item.action} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-slate-200">{item.description}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {item.timestamp.toLocaleTimeString()}
-                  </p>
+            activity.map(item =>
+              item.type === 'sync' ? (
+                <div key={item.id} className="px-5 py-3 flex items-start gap-3">
+                  <SyncBadge status={item.status!} />
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm ${item.status === 'error' ? 'text-red-400' : 'text-slate-400'}`}>
+                      {item.status === 'success'
+                        ? `${item.providerName} sync complete — ${item.rowsInserted?.toLocaleString() ?? 0} records, ${((item.durationMs ?? 0) / 1000).toFixed(1)}s`
+                        : `${item.providerName} sync failed — ${item.errorMessage ?? 'Unknown error'}`}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {item.timestamp.toLocaleTimeString()}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))
+              ) : (
+                <div key={item.id} className="px-5 py-3 flex items-start gap-3">
+                  <ActionBadge action={item.action!} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-200">{item.description}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {item.timestamp.toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+              )
+            )
           )}
         </div>
       </div>
@@ -650,6 +753,17 @@ function MapLegend() {
         <span>Unregistered</span>
       </div>
     </div>
+  )
+}
+
+function SyncBadge({ status }: { status: string }) {
+  const isError = status === 'error'
+  return (
+    <span className={`flex-shrink-0 w-6 h-6 rounded flex items-center justify-center ${isError ? 'bg-red-500/20 text-red-400' : 'bg-slate-600/50 text-slate-400'}`}>
+      <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+        <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H4.598a.75.75 0 00-.75.75v3.634a.75.75 0 001.5 0v-2.033l.312.311a7 7 0 0011.712-3.138.75.75 0 10-1.449-.422zM4.688 8.576a5.5 5.5 0 019.201-2.466l.312.311h-2.433a.75.75 0 000 1.5h3.634a.75.75 0 00.75-.75V3.537a.75.75 0 00-1.5 0v2.033l-.312-.311a7 7 0 00-11.712 3.138.75.75 0 001.449.422z" clipRule="evenodd" />
+      </svg>
+    </span>
   )
 }
 

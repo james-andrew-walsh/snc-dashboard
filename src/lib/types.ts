@@ -100,6 +100,17 @@ export interface SiteLocationJob {
   createdAt: string
 }
 
+export interface SyncLog {
+  id: string
+  providerKey: string
+  providerName: string
+  status: 'success' | 'error'
+  rowsInserted: number | null
+  durationMs: number | null
+  errorMessage: string | null
+  completedAt: string
+}
+
 export interface CrewAssignment {
   id: string
   jobId: string
