@@ -11,6 +11,10 @@ interface ReconRow {
   site_name: string | null
   site_id: string | null
   jobCode: string | null
+  e360_location: string | null
+  hj_job: string | null
+  hj_job_description: string | null
+  hour_meter: number | null
 }
 
 interface SiteGroup {
@@ -97,7 +101,11 @@ export function Discrepancies() {
           reconciliation_status: r.reconciliation_status as string,
           site_name: (r.site_name as string) ?? null,
           site_id: (r.site_id as string) ?? null,
-          jobCode: (r.jobCode as string) ?? null,
+          jobCode: (r.e360_job as string) ?? null,
+          e360_location: (r.e360_location as string) ?? null,
+          hj_job: (r.hj_job as string) ?? null,
+          hj_job_description: (r.hj_job_description as string) ?? null,
+          hour_meter: (r.hour_meter as number) ?? null,
         }))
 
       // Group by site_name
@@ -195,6 +203,9 @@ export function Discrepancies() {
                     <th className="px-5 py-2.5 font-medium">Engine</th>
                     <th className="px-5 py-2.5 font-medium">GPS</th>
                     <th className="px-5 py-2.5 font-medium">E360 Job</th>
+                    <th className="px-5 py-2.5 font-medium">E360 Location</th>
+                    <th className="px-5 py-2.5 font-medium">HJ Job</th>
+                    <th className="px-5 py-2.5 font-medium">Hour Meter</th>
                     <th className="px-5 py-2.5 font-medium">Status</th>
                   </tr>
                 </thead>
@@ -219,6 +230,19 @@ export function Discrepancies() {
                         )}
                       </td>
                       <td className="px-5 py-2.5 font-mono text-slate-300">{row.jobCode ?? '—'}</td>
+                      <td className="px-5 py-2.5 text-slate-300">
+                        {(row.reconciliation_status === 'ANOMALY' || row.reconciliation_status === 'DISPUTED')
+                          ? (row.e360_location ?? '—')
+                          : '—'}
+                      </td>
+                      <td className="px-5 py-2.5 text-slate-300">
+                        {row.reconciliation_status === 'DISPUTED'
+                          ? <span><span className="font-mono">{row.hj_job ?? '—'}</span>{row.hj_job_description ? <span className="text-xs text-slate-400 ml-1">— {row.hj_job_description}</span> : null}</span>
+                          : '—'}
+                      </td>
+                      <td className="px-5 py-2.5 font-mono text-slate-300">
+                        {row.hour_meter != null ? `${Math.round(row.hour_meter).toLocaleString()} hrs` : '—'}
+                      </td>
                       <td className="px-5 py-2.5">
                         <span className={`inline-block text-[11px] font-semibold uppercase px-2 py-0.5 rounded border ${statusColor(row.reconciliation_status)}`}>
                           {statusLabel(row.reconciliation_status)}

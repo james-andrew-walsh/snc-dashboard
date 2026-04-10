@@ -72,7 +72,10 @@ export interface TelematicsSnapshot {
   // Reconciliation status from RPC
   reconciliation_status?: string
   e360_job?: string | null
+  e360_location?: string | null
   hj_job?: string | null
+  hj_job_description?: string | null
+  hour_meter?: number | null
 }
 
 export interface SiteLocation {

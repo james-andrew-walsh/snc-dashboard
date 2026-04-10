@@ -93,7 +93,10 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
         equipmentDescription: p.equipmentDescription ?? '',
         reconciliation_status: p.reconciliation_status ?? 'OUTSIDE',
         e360_job: p.e360_job ?? '',
+        e360_location: p.e360_location ?? '',
         hj_job: p.hj_job ?? '',
+        hj_job_description: p.hj_job_description ?? '',
+        hour_meter: p.hour_meter ?? null,
       },
       geometry: {
         type: 'Point' as const,
@@ -167,15 +170,31 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
       // Build reconciliation warning if applicable
       let reconHtml = ''
       const reconStatus = props.reconciliation_status
+      const hourMeter = props.hour_meter != null ? Number(props.hour_meter) : null
+      const hourMeterStr = hourMeter != null ? `${Math.round(hourMeter).toLocaleString()} hrs` : null
+      const e360Loc = props.e360_location || null
+
       if (reconStatus === 'ANOMALY') {
         const job = props.e360_job || 'unknown'
-        reconHtml = `<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;color:#f59e0b;font-size:12px">&#9888;&#65039; No HeavyJob authorization — E360 assigns to job ${job} but HeavyJob has no record for this site</div>`
+        let detail = `&#9888;&#65039; No HeavyJob authorization<br/>E360 assigns to: ${job}`
+        if (e360Loc) detail += `<br/>E360 location: ${e360Loc}`
+        if (hourMeterStr) detail += `<br/>Hour meter: ${hourMeterStr}`
+        reconHtml = `<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;color:#f59e0b;font-size:12px">${detail}</div>`
       } else if (reconStatus === 'DISPUTED') {
         const e360 = props.e360_job || 'unknown'
         const hj = props.hj_job || 'unknown'
-        reconHtml = `<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;color:#f59e0b;font-size:12px">&#9888;&#65039; Job disagreement — E360: ${e360} · HeavyJob: ${hj}</div>`
+        const hjDesc = props.hj_job_description || ''
+        let detail = `&#9888;&#65039; Job disagreement<br/>E360 assigns to: ${e360}`
+        if (e360Loc) detail += ` (${e360Loc})`
+        detail += `<br/>HeavyJob assigns to: ${hj}`
+        if (hjDesc) detail += ` &mdash; ${hjDesc}`
+        if (hourMeterStr) detail += `<br/>Hour meter: ${hourMeterStr}`
+        reconHtml = `<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;color:#f59e0b;font-size:12px">${detail}</div>`
       } else if (reconStatus === 'NOT_IN_EITHER') {
-        reconHtml = `<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;color:#f59e0b;font-size:12px">&#9888;&#65039; Not in any system — engine active, no E360 or HeavyJob record</div>`
+        let detail = `&#9888;&#65039; Not in any system<br/>No E360 or HeavyJob record found`
+        if (hourMeterStr) detail += `<br/>Hour meter: ${hourMeterStr}`
+        detail += `<br/>GPS: ${formatGpsTime(props.locationDateTime)}`
+        reconHtml = `<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;color:#f59e0b;font-size:12px">${detail}</div>`
       }
 
       const html = `<div style="color:#1e293b;font-size:13px;line-height:1.6">

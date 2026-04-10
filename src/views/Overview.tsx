@@ -82,7 +82,10 @@ export function Overview() {
         equipmentDescription: (row.description as string) ?? '',
         reconciliation_status: (row.reconciliation_status as string) ?? 'OUTSIDE',
         e360_job: (row.e360_job as string) ?? null,
+        e360_location: (row.e360_location as string) ?? null,
         hj_job: (row.hj_job as string) ?? null,
+        hj_job_description: (row.hj_job_description as string) ?? null,
+        hour_meter: (row.hour_meter as number) ?? null,
       }))
       setTelematicsPoints(points)
       setSiteLocations((siteLocRes.data ?? []) as SiteLocation[])
