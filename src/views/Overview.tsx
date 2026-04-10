@@ -33,13 +33,16 @@ function formatSyncLogEntry(item: ActivityItem): string {
   }
 
   if (item.providerKey === 'reconciliation' && item.details) {
-    const { anomaly_no_hj, disputed, not_in_either } = item.details as { anomaly_no_hj: number; disputed: number; not_in_either: number }
-    const parts = []
+    const { anomaly_no_hj, disputed, not_in_either, new_anomalies, resolved } = item.details as { anomaly_no_hj: number; disputed: number; not_in_either: number; total_active: number; new_anomalies: number; resolved: number }
+    const parts: string[] = []
     if (anomaly_no_hj > 0) parts.push(`${anomaly_no_hj} no HJ record`)
     if (disputed > 0) parts.push(`${disputed} disputed`)
     if (not_in_either > 0) parts.push(`${not_in_either} unregistered`)
     const summary = parts.length > 0 ? parts.join(' · ') : 'no anomalies'
-    return `Reconciliation complete — ${summary}`
+    const changeNote = new_anomalies > 0 || resolved > 0
+      ? ` (+${new_anomalies} new, ${resolved} resolved)`
+      : ''
+    return `Reconciliation — ${summary}${changeNote}`
   }
 
   // Fallback for unknown providers
