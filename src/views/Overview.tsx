@@ -18,7 +18,32 @@ interface ActivityItem {
   rowsInserted?: number | null
   durationMs?: number | null
   errorMessage?: string | null
+  details?: Record<string, unknown> | null
   timestamp: Date
+}
+
+function formatSyncLogEntry(item: ActivityItem): string {
+  if (item.status === 'error') {
+    return `${item.providerName} failed — ${item.errorMessage ?? 'Unknown error'}`
+  }
+
+  if (item.providerKey === 'e360' && item.details) {
+    const { total, fresh_gps, stale_gps } = item.details as { total: number; fresh_gps: number; stale_gps: number }
+    return `E360 sync complete — ${total} machines (${fresh_gps} fresh GPS, ${stale_gps} stale)`
+  }
+
+  if (item.providerKey === 'reconciliation' && item.details) {
+    const { anomaly_no_hj, disputed, not_in_either } = item.details as { anomaly_no_hj: number; disputed: number; not_in_either: number }
+    const parts = []
+    if (anomaly_no_hj > 0) parts.push(`${anomaly_no_hj} no HJ record`)
+    if (disputed > 0) parts.push(`${disputed} disputed`)
+    if (not_in_either > 0) parts.push(`${not_in_either} unregistered`)
+    const summary = parts.length > 0 ? parts.join(' · ') : 'no anomalies'
+    return `Reconciliation complete — ${summary}`
+  }
+
+  // Fallback for unknown providers
+  return `${item.providerName} complete — ${item.rowsInserted?.toLocaleString() ?? 0} records`
 }
 
 function polygonToWKT(polygon: GeoJSON.Polygon): string {
@@ -100,6 +125,7 @@ export function Overview() {
           rowsInserted: log.rowsInserted,
           durationMs: log.durationMs,
           errorMessage: log.errorMessage,
+          details: log.details,
           timestamp: new Date(log.completedAt),
         }))
         setActivity(syncItems)
@@ -187,6 +213,7 @@ export function Overview() {
             rowsInserted: log.rowsInserted,
             durationMs: log.durationMs,
             errorMessage: log.errorMessage,
+            details: log.details,
             timestamp: new Date(log.completedAt),
           }
           setActivity(prev => [item, ...prev].slice(0, 50))
@@ -694,9 +721,7 @@ export function Overview() {
                   <SyncBadge status={item.status!} />
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm ${item.status === 'error' ? 'text-red-400' : 'text-slate-400'}`}>
-                      {item.status === 'success'
-                        ? `${item.providerName} sync complete — ${item.rowsInserted?.toLocaleString() ?? 0} records, ${((item.durationMs ?? 0) / 1000).toFixed(1)}s`
-                        : `${item.providerName} sync failed — ${item.errorMessage ?? 'Unknown error'}`}
+                      {formatSyncLogEntry(item)}
                     </p>
                     <p className="text-xs text-slate-500 mt-0.5">
                       {item.timestamp.toLocaleTimeString()}

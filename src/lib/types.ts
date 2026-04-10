@@ -108,6 +108,7 @@ export interface SyncLog {
   rowsInserted: number | null
   durationMs: number | null
   errorMessage: string | null
+  details: Record<string, unknown> | null
   completedAt: string
 }
 
