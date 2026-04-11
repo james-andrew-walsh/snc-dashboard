@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-export type ViewId = 'magnet-board' | 'overview' | 'business-units' | 'jobs-locations' | 'equipment' | 'employees' | 'crew-assignments' | 'dispatch' | 'discrepancies' | 'admin'
+export type ViewId = 'magnet-board' | 'overview' | 'business-units' | 'jobs' | 'locations' | 'equipment' | 'discrepancies' | 'admin'
 
 interface NavItem {
   id: ViewId
@@ -10,14 +10,12 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { id: 'magnet-board', label: 'Magnet Board', icon: <MagnetBoardIcon /> },
   { id: 'overview', label: 'Overview', icon: <OverviewIcon /> },
+  { id: 'magnet-board', label: 'Magnet Board', icon: <MagnetBoardIcon /> },
   { id: 'business-units', label: 'Business Units', icon: <BusinessIcon /> },
-  { id: 'jobs-locations', label: 'Jobs & Locations', icon: <JobsIcon /> },
+  { id: 'jobs', label: 'Jobs', icon: <JobsIcon /> },
+  { id: 'locations', label: 'Locations', icon: <LocationsIcon /> },
   { id: 'equipment', label: 'Equipment', icon: <EquipmentIcon /> },
-  { id: 'employees', label: 'Employees', icon: <EmployeesIcon /> },
-  { id: 'crew-assignments', label: 'Crew Assignments', icon: <CrewIcon /> },
-  { id: 'dispatch', label: 'Dispatch Schedule', icon: <DispatchIcon /> },
   { id: 'discrepancies', label: 'Discrepancies', icon: <DiscrepanciesIcon /> },
 ]
 
@@ -173,26 +171,10 @@ function EquipmentIcon() {
   )
 }
 
-function EmployeesIcon() {
+function LocationsIcon() {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-      <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-    </svg>
-  )
-}
-
-function CrewIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-      <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v1h8v-1zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-1a5.97 5.97 0 00-.75-2.906A3.005 3.005 0 0119 17v1h-3zM4.75 14.094A5.97 5.97 0 004 17v1H1v-1a3 3 0 013.75-2.906z" />
-    </svg>
-  )
-}
-
-function DispatchIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+      <path fillRule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.145 15.75 15.75 0 002.575-1.838C15.302 15.13 17 12.916 17 10a7 7 0 10-14 0c0 2.916 1.698 5.13 3.81 6.939a15.75 15.75 0 002.575 1.838 10.06 10.06 0 00.3.153l.017.009.006.003zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
     </svg>
   )
 }

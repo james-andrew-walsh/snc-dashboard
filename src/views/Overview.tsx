@@ -60,7 +60,6 @@ export function Overview() {
   const [equipmentCount, setEquipmentCount] = useState(0)
   const [trackedCount, setTrackedCount] = useState(0)
   const [jobCount, setJobCount] = useState(0)
-  const [dispatchCount, setDispatchCount] = useState(0)
   const [activity, setActivity] = useState<ActivityItem[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -93,10 +92,9 @@ export function Overview() {
 
   useEffect(() => {
     async function fetchData() {
-      const [eqRes, jobRes, dispRes, telRes, anomalyRes, siteLocRes, siteLocJobRes, latestSnapRes, syncLogRes] = await Promise.all([
+      const [eqRes, jobRes, telRes, anomalyRes, siteLocRes, siteLocJobRes, latestSnapRes, syncLogRes] = await Promise.all([
         supabase.from('Equipment').select('id', { count: 'exact', head: true }),
         supabase.from('Job').select('id', { count: 'exact', head: true }),
-        supabase.from('DispatchEvent').select('id', { count: 'exact', head: true }),
         supabase.rpc('get_latest_telematics'),
         supabase.from('Anomaly').select('*').is('resolvedAt', null),
         supabase.from('SiteLocation').select('*').order('createdAt', { ascending: false }),
@@ -107,7 +105,6 @@ export function Overview() {
 
       setEquipmentCount(eqRes.count ?? 0)
       setJobCount(jobRes.count ?? 0)
-      setDispatchCount(dispRes.count ?? 0)
 
       // Equipment coverage: count distinct equipment in latest snapshot batch
       if (latestSnapRes.data?.snapshotAt) {
@@ -174,7 +171,7 @@ export function Overview() {
 
   // Realtime activity feed
   useEffect(() => {
-    const tables = ['Equipment', 'Job', 'DispatchEvent', 'Employee', 'Location'] as const
+    const tables = ['Equipment', 'Job', 'Location'] as const
     const channels = tables.map(table =>
       supabase
         .channel(`overview-${table}`)
@@ -199,10 +196,6 @@ export function Overview() {
             if (table === 'Job') {
               if (payload.eventType === 'INSERT') setJobCount(c => c + 1)
               if (payload.eventType === 'DELETE') setJobCount(c => c - 1)
-            }
-            if (table === 'DispatchEvent') {
-              if (payload.eventType === 'INSERT') setDispatchCount(c => c + 1)
-              if (payload.eventType === 'DELETE') setDispatchCount(c => c - 1)
             }
           }
         )
@@ -481,16 +474,6 @@ export function Overview() {
           icon={
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
               <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-            </svg>
-          }
-        />
-        <MetricCard
-          label="Dispatch Events"
-          value={loading ? '—' : dispatchCount}
-          color="green"
-          icon={
-            <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
             </svg>
           }
         />

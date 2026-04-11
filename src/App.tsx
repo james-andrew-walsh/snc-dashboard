@@ -7,11 +7,9 @@ import { Layout } from './components/Layout'
 import type { ViewId } from './components/Sidebar'
 import { Overview } from './views/Overview'
 import { BusinessUnits } from './views/BusinessUnits'
-import { JobsLocations } from './views/JobsLocations'
+import { Jobs } from './views/Jobs'
+import { Locations } from './views/Locations'
 import { EquipmentView } from './views/Equipment'
-import { Employees } from './views/Employees'
-import { CrewAssignments } from './views/CrewAssignments'
-import { DispatchSchedule } from './views/DispatchSchedule'
 import { MagnetBoard } from './views/MagnetBoard'
 import { Discrepancies } from './views/Discrepancies'
 
@@ -19,11 +17,9 @@ const views: Record<ViewId, React.FC> = {
   'magnet-board': MagnetBoard,
   'overview': Overview,
   'business-units': BusinessUnits,
-  'jobs-locations': JobsLocations,
+  'jobs': Jobs,
+  'locations': Locations,
   'equipment': EquipmentView,
-  'employees': Employees,
-  'crew-assignments': CrewAssignments,
-  'dispatch': DispatchSchedule,
   'discrepancies': Discrepancies,
   'admin': Admin,
 }
