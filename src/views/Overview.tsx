@@ -148,6 +148,7 @@ export function Overview() {
           locationDateTime: (row.locationDateTime as string) ?? null,
           isLocationStale: row.isLocationStale as boolean,
           engineStatus: row.engineStatus as string,
+          engineStatusAt: (row.engineStatusAt as string) ?? null,
           snapshotAt: row.snapshotAt as string,
           make: (row.make as string) ?? '',
           model: (row.model as string) ?? '',

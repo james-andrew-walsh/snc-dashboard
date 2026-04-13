@@ -64,6 +64,7 @@ export interface TelematicsSnapshot {
   locationDateTime: string | null
   isLocationStale: boolean
   engineStatus: string
+  engineStatusAt: string | null
   snapshotAt: string
   // Joined from Equipment table for popup display
   make?: string

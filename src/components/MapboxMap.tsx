@@ -86,6 +86,7 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
       properties: {
         equipmentCode: p.equipmentCode,
         engineStatus: p.engineStatus,
+        engineStatusAt: p.engineStatusAt ?? '',
         isLocationStale: p.isLocationStale,
         locationDateTime: p.locationDateTime,
         make: p.make ?? '',
@@ -197,10 +198,15 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
         reconHtml = `<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;color:#f59e0b;font-size:12px">${detail}</div>`
       }
 
+      const engineReportHtml = props.engineStatusAt
+        ? `Engine Report: ${formatGpsTime(props.engineStatusAt)}`
+        : ''
+
       const html = `<div style="color:#1e293b;font-size:13px;line-height:1.6">
         ${label ? `<div style="font-weight:600;margin-bottom:2px">${label}</div>` : ''}
         <div style="color:#475569">${props.equipmentCode}</div>
         Engine: <span style="color:${statusColor};font-weight:600">${props.engineStatus === 'Active' ? 'Active' : 'Off'}</span><br/>
+        ${engineReportHtml ? `<span style="color:#64748b">${engineReportHtml}</span><br/>` : ''}
         GPS: ${formatGpsTime(props.locationDateTime)}
         ${stale ? '<br/><span style="color:#f59e0b">&#9888; GPS stale</span>' : ''}
         ${reconHtml}
