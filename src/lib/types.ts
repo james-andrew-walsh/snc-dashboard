@@ -57,7 +57,7 @@ export interface DispatchEvent {
   notes: string
 }
 
-export type TelematicsProvider = 'HCSS' | 'JDLink'
+export type TelematicsProvider = 'e360' | 'jdlink'
 
 export interface TelematicsSnapshot {
   equipmentCode: string

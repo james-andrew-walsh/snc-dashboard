@@ -67,7 +67,7 @@ export function Overview() {
   const [telematicsPoints, setTelematicsPoints] = useState<TelematicsSnapshot[]>([])
 
   // Provider filter & comparison mode
-  const [providerFilter, setProviderFilter] = useState<'All' | TelematicsProvider>('All')
+  const [providerFilter, setProviderFilter] = useState<'All' | TelematicsProvider | 'HCSS' | 'JDLink'>('All')
   const [comparisonMode, setComparisonMode] = useState(false)
 
   // Geofence / Location state
@@ -96,7 +96,7 @@ export function Overview() {
 
   useEffect(() => {
     async function fetchData() {
-      const [eqRes, jobRes, telRes, anomalyRes, siteLocRes, siteLocJobRes, latestSnapRes, syncLogRes] = await Promise.all([
+      const [eqRes, jobRes, telRes, anomalyRes, siteLocRes, siteLocJobRes, _latestSnapRes, syncLogRes] = await Promise.all([
         supabase.from('Equipment').select('id', { count: 'exact', head: true }),
         supabase.from('Job').select('id', { count: 'exact', head: true }),
         supabase.rpc('get_latest_telematics'),
@@ -110,14 +110,12 @@ export function Overview() {
       setEquipmentCount(eqRes.count ?? 0)
       setJobCount(jobRes.count ?? 0)
 
-      // Equipment coverage: count distinct equipment in latest snapshot batch
-      if (latestSnapRes.data?.snapshotAt) {
-        const { count } = await supabase
-          .from('TelematicsSnapshot')
-          .select('equipmentCode', { count: 'exact', head: true })
-          .eq('snapshotAt', latestSnapRes.data.snapshotAt)
-        setTrackedCount(count ?? 0)
-      }
+      // Equipment coverage: count distinct equipment with telematics data (across all providers)
+      const { count: tracked } = await supabase
+        .from('TelematicsSnapshot')
+        .select('equipmentCode', { count: 'exact', head: true })
+        .gte('snapshotAt', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
+      setTrackedCount(tracked ?? 0)
 
       // Seed activity feed with recent sync log entries
       if (syncLogRes.data) {
@@ -454,8 +452,8 @@ export function Overview() {
       const code = p.equipmentCode
       if (!byEquipment.has(code)) byEquipment.set(code, { hcss: null, jdlink: null })
       const entry = byEquipment.get(code)!
-      if (p.provider === 'JDLink') entry.jdlink = p
-      else entry.hcss = p // Default to HCSS
+      if (p.provider === 'jdlink') entry.jdlink = p
+      else if (p.provider === 'e360') entry.hcss = p // HCSS/E360 provider
     }
 
     const discrepancies = new Map<string, ProviderDiscrepancy>()
@@ -544,12 +542,12 @@ export function Overview() {
           <label className="text-sm text-slate-400">Telematics Provider:</label>
           <select
             value={providerFilter}
-            onChange={e => setProviderFilter(e.target.value as 'All' | TelematicsProvider)}
+            onChange={e => setProviderFilter(e.target.value as 'All' | TelematicsProvider | 'HCSS' | 'JDLink')}
             className="bg-slate-800 text-sm text-slate-200 rounded px-2.5 py-1.5 border border-slate-600 focus:border-orange-500 focus:outline-none"
           >
             <option value="All">All Providers</option>
-            <option value="HCSS">HCSS</option>
-            <option value="JDLink">JDLink</option>
+            <option value="e360">HCSS</option>
+            <option value="jdlink">JDLink</option>
           </select>
         </div>
         <button
