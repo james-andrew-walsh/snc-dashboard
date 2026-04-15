@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { MetricCard } from '../components/MetricCard'
 import { MapboxMap } from '../components/MapboxMap'
-import type { TelematicsSnapshot, SiteLocation, SiteLocationJob, Job, SyncLog, Anomaly } from '../lib/types'
+import type { TelematicsSnapshot, TelematicsProvider, SiteLocation, SiteLocationJob, Job, SyncLog, Anomaly, ProviderDiscrepancy } from '../lib/types'
 
 interface ActivityItem {
   id: string
@@ -65,6 +65,10 @@ export function Overview() {
 
   // Telematics data for map
   const [telematicsPoints, setTelematicsPoints] = useState<TelematicsSnapshot[]>([])
+
+  // Provider filter & comparison mode
+  const [providerFilter, setProviderFilter] = useState<'All' | TelematicsProvider>('All')
+  const [comparisonMode, setComparisonMode] = useState(false)
 
   // Geofence / Location state
   const [siteLocations, setSiteLocations] = useState<SiteLocation[]>([])
@@ -150,15 +154,21 @@ export function Overview() {
           engineStatus: row.engineStatus as string,
           engineStatusAt: (row.engineStatusAt as string) ?? null,
           snapshotAt: row.snapshotAt as string,
+          provider: (row.provider as TelematicsProvider) ?? undefined,
           make: (row.make as string) ?? '',
           model: (row.model as string) ?? '',
           equipmentDescription: (row.description as string) ?? '',
+          // JDLink-specific fields (AEMP 2.0)
+          idleHours: (row.idleHours as number) ?? null,
+          fuelRemainingPercent: (row.fuelRemainingPercent as number) ?? null,
+          fuelConsumedLiters: (row.fuelConsumedLiters as number) ?? null,
+          defRemainingPercent: (row.defRemainingPercent as number) ?? null,
           anomalyType: anomaly?.anomalyType ?? undefined,
           e360_job: anomaly?.e360JobCode ?? null,
           e360_location: anomaly?.e360LocationName ?? null,
           hj_job: anomaly?.hjJobCode ?? null,
           hj_job_description: anomaly?.hjJobDescription ?? null,
-          hour_meter: anomaly?.hourMeter ?? null,
+          hour_meter: anomaly?.hourMeter ?? (row.hourMeter as number) ?? null,
         }
       })
       setTelematicsPoints(points)
@@ -428,6 +438,54 @@ export function Overview() {
     setSelectedJobs(prev => prev.filter(j => j.code !== code))
   }
 
+  // Filter points by selected provider
+  const filteredPoints = useMemo(() => {
+    if (providerFilter === 'All') return telematicsPoints
+    return telematicsPoints.filter(p => p.provider === providerFilter)
+  }, [telematicsPoints, providerFilter])
+
+  // Compute provider discrepancies for comparison mode
+  const providerDiscrepancies = useMemo(() => {
+    if (!comparisonMode) return new Map<string, ProviderDiscrepancy>()
+
+    // Group by equipmentCode
+    const byEquipment = new Map<string, { hcss: TelematicsSnapshot | null, jdlink: TelematicsSnapshot | null }>()
+    for (const p of telematicsPoints) {
+      const code = p.equipmentCode
+      if (!byEquipment.has(code)) byEquipment.set(code, { hcss: null, jdlink: null })
+      const entry = byEquipment.get(code)!
+      if (p.provider === 'JDLink') entry.jdlink = p
+      else entry.hcss = p // Default to HCSS
+    }
+
+    const discrepancies = new Map<string, ProviderDiscrepancy>()
+    for (const [code, { hcss, jdlink }] of byEquipment) {
+      if (!hcss || !jdlink) continue
+
+      // GPS distance (Haversine)
+      const gpsDist = haversineMeters(hcss.latitude, hcss.longitude, jdlink.latitude, jdlink.longitude)
+      const hourDiff = (hcss.hour_meter != null && jdlink.hour_meter != null)
+        ? Math.abs(hcss.hour_meter - jdlink.hour_meter)
+        : null
+
+      const hasGps = gpsDist > 50
+      const hasHour = hourDiff != null && hourDiff > 10
+
+      if (hasGps || hasHour) {
+        discrepancies.set(code, {
+          equipmentCode: code,
+          hcss,
+          jdlink,
+          gpsDistanceMeters: gpsDist,
+          engineHoursDiff: hourDiff,
+          hasGpsDiscrepancy: hasGps,
+          hasHourDiscrepancy: hasHour,
+        })
+      }
+    }
+    return discrepancies
+  }, [telematicsPoints, comparisonMode])
+
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-slate-100">Overview</h2>
@@ -480,23 +538,56 @@ export function Overview() {
         />
       </div>
 
+      {/* Provider filter + Comparison toggle */}
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-slate-400">Telematics Provider:</label>
+          <select
+            value={providerFilter}
+            onChange={e => setProviderFilter(e.target.value as 'All' | TelematicsProvider)}
+            className="bg-slate-800 text-sm text-slate-200 rounded px-2.5 py-1.5 border border-slate-600 focus:border-orange-500 focus:outline-none"
+          >
+            <option value="All">All Providers</option>
+            <option value="HCSS">HCSS</option>
+            <option value="JDLink">JDLink</option>
+          </select>
+        </div>
+        <button
+          onClick={() => setComparisonMode(!comparisonMode)}
+          className={`text-sm rounded px-3 py-1.5 font-medium transition-colors ${
+            comparisonMode
+              ? 'bg-purple-600 text-white'
+              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+          }`}
+        >
+          {comparisonMode ? 'Comparison Mode ON' : 'Comparison Mode'}
+        </button>
+        {comparisonMode && providerDiscrepancies.size > 0 && (
+          <span className="text-sm text-purple-400">
+            {providerDiscrepancies.size} discrepanc{providerDiscrepancies.size === 1 ? 'y' : 'ies'} found
+          </span>
+        )}
+      </div>
+
       {/* Map + Locations Panel */}
       <div className="flex gap-4">
         {/* Map */}
         <div className="flex-1 h-[500px] rounded-lg overflow-hidden relative">
           <MapboxMap
-            points={telematicsPoints}
+            points={filteredPoints}
             geofences={siteLocations}
             drawMode={drawMode}
             onDrawComplete={handleDrawComplete}
             onDrawCancel={handleDrawCancel}
+            comparisonMode={comparisonMode}
+            discrepancies={providerDiscrepancies}
           />
           {drawMode && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-slate-900/90 text-orange-400 text-sm px-4 py-2 rounded-lg border border-orange-500/40 z-10">
               Click points to draw polygon. Double-click or click first point to close.
             </div>
           )}
-          <MapLegend />
+          <MapLegend comparisonMode={comparisonMode} />
         </div>
 
         {/* Locations Panel */}
@@ -754,7 +845,7 @@ export function Overview() {
   )
 }
 
-function MapLegend() {
+function MapLegend({ comparisonMode }: { comparisonMode: boolean }) {
   return (
     <div className="absolute bottom-3 left-3 z-10 bg-slate-900/80 rounded-lg px-3 py-2.5 text-xs text-slate-300 space-y-1.5 pointer-events-auto">
       <div className="flex items-center gap-2">
@@ -784,8 +875,29 @@ function MapLegend() {
         <span className="inline-block w-2.5 h-2.5 rounded-full border-2 border-orange-500 bg-transparent" />
         <span>Unregistered</span>
       </div>
+      {comparisonMode && (
+        <>
+          <div className="border-t border-slate-600 pt-1.5 mt-1.5 text-purple-400 font-semibold text-[10px] uppercase tracking-wide">
+            Comparison
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-3.5 h-3.5 rounded-full border-[3px] border-purple-500 bg-transparent" />
+            <span>Provider Discrepancy</span>
+          </div>
+        </>
+      )}
     </div>
   )
+}
+
+/** Haversine distance in meters between two lat/lng points */
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000
+  const toRad = (d: number) => d * Math.PI / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 function SyncBadge({ status }: { status: string }) {

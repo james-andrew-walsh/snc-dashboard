@@ -3,7 +3,7 @@ import mapboxgl from 'mapbox-gl'
 import MapboxDraw from '@mapbox/mapbox-gl-draw'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css'
-import type { TelematicsSnapshot, SiteLocation } from '../lib/types'
+import type { TelematicsSnapshot, SiteLocation, ProviderDiscrepancy } from '../lib/types'
 
 interface MapboxMapProps {
   points: TelematicsSnapshot[]
@@ -11,6 +11,8 @@ interface MapboxMapProps {
   drawMode?: boolean
   onDrawComplete?: (polygon: GeoJSON.Polygon) => void
   onDrawCancel?: () => void
+  comparisonMode?: boolean
+  discrepancies?: Map<string, ProviderDiscrepancy>
 }
 
 function formatGpsTime(dateStr: string | null): string {
@@ -31,7 +33,7 @@ function formatGpsTime(dateStr: string | null): string {
   })
 }
 
-export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComplete, onDrawCancel }: MapboxMapProps) {
+export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComplete, onDrawCancel, comparisonMode = false, discrepancies }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const popupRef = useRef<mapboxgl.Popup | null>(null)
@@ -81,30 +83,39 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
   // Build GeoJSON from points
   const buildGeoJSON = useCallback((): GeoJSON.FeatureCollection => ({
     type: 'FeatureCollection',
-    features: points.map((p) => ({
-      type: 'Feature' as const,
-      properties: {
-        equipmentCode: p.equipmentCode,
-        engineStatus: p.engineStatus,
-        engineStatusAt: p.engineStatusAt ?? '',
-        isLocationStale: p.isLocationStale,
-        locationDateTime: p.locationDateTime,
-        make: p.make ?? '',
-        model: p.model ?? '',
-        equipmentDescription: p.equipmentDescription ?? '',
-        anomalyType: p.anomalyType ?? '',
-        e360_job: p.e360_job ?? '',
-        e360_location: p.e360_location ?? '',
-        hj_job: p.hj_job ?? '',
-        hj_job_description: p.hj_job_description ?? '',
-        hour_meter: p.hour_meter ?? null,
-      },
-      geometry: {
-        type: 'Point' as const,
-        coordinates: [p.longitude, p.latitude],
-      },
-    })),
-  }), [points])
+    features: points.map((p) => {
+      const hasDiscrepancy = comparisonMode && discrepancies?.has(p.equipmentCode) || false
+      return {
+        type: 'Feature' as const,
+        properties: {
+          equipmentCode: p.equipmentCode,
+          engineStatus: p.engineStatus,
+          engineStatusAt: p.engineStatusAt ?? '',
+          isLocationStale: p.isLocationStale,
+          locationDateTime: p.locationDateTime,
+          make: p.make ?? '',
+          model: p.model ?? '',
+          equipmentDescription: p.equipmentDescription ?? '',
+          provider: p.provider ?? '',
+          idleHours: p.idleHours ?? null,
+          fuelRemainingPercent: p.fuelRemainingPercent ?? null,
+          fuelConsumedLiters: p.fuelConsumedLiters ?? null,
+          defRemainingPercent: p.defRemainingPercent ?? null,
+          anomalyType: p.anomalyType ?? '',
+          e360_job: p.e360_job ?? '',
+          e360_location: p.e360_location ?? '',
+          hj_job: p.hj_job ?? '',
+          hj_job_description: p.hj_job_description ?? '',
+          hour_meter: p.hour_meter ?? null,
+          hasDiscrepancy,
+        },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [p.longitude, p.latitude],
+        },
+      }
+    }),
+  }), [points, comparisonMode, discrepancies])
 
   // Update telematics data when map is ready or points change
   useEffect(() => {
@@ -126,7 +137,11 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
       type: 'circle',
       source: 'telematics',
       paint: {
-        'circle-radius': 5,
+        'circle-radius': [
+          'case',
+          ['get', 'hasDiscrepancy'], 7,
+          5,
+        ] as unknown as number,
         'circle-color': [
           'case',
           ['==', ['get', 'engineStatus'], 'Active'],
@@ -140,18 +155,24 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
           1,
         ],
         'circle-stroke-width': [
-          'match', ['get', 'anomalyType'],
-          'ANOMALY_NO_HJ', 3,
-          'DISPUTED', 3,
-          'NOT_IN_EITHER', 3,
-          1,
+          'case',
+          ['get', 'hasDiscrepancy'], 4,
+          ['match', ['get', 'anomalyType'],
+            'ANOMALY_NO_HJ', 3,
+            'DISPUTED', 3,
+            'NOT_IN_EITHER', 3,
+            1,
+          ],
         ] as unknown as number,
         'circle-stroke-color': [
-          'match', ['get', 'anomalyType'],
-          'ANOMALY_NO_HJ', '#ef4444',
-          'DISPUTED', '#eab308',
-          'NOT_IN_EITHER', '#f97316',
-          '#1e293b',
+          'case',
+          ['get', 'hasDiscrepancy'], '#a855f7',
+          ['match', ['get', 'anomalyType'],
+            'ANOMALY_NO_HJ', '#ef4444',
+            'DISPUTED', '#eab308',
+            'NOT_IN_EITHER', '#f97316',
+            '#1e293b',
+          ],
         ] as unknown as string,
       },
     })
@@ -167,6 +188,28 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
       const statusColor = props.engineStatus === 'Active' ? '#22c55e' : '#6b7280'
       const makeModel = [props.make, props.model].filter(Boolean).join(' ')
       const label = makeModel || props.equipmentDescription || ''
+
+      // Provider badge
+      const provider = props.provider || 'HCSS'
+      const providerColor = provider === 'JDLink' ? '#16a34a' : '#2563eb'
+      const providerBadge = `<span style="display:inline-block;background:${providerColor};color:#fff;font-size:10px;font-weight:600;padding:1px 6px;border-radius:3px;margin-left:4px">${provider}</span>`
+
+      // JDLink-specific data
+      let jdlinkHtml = ''
+      if (provider === 'JDLink') {
+        const parts: string[] = []
+        const idleH = props.idleHours != null ? Number(props.idleHours) : null
+        const fuelPct = props.fuelRemainingPercent != null ? Number(props.fuelRemainingPercent) : null
+        const fuelL = props.fuelConsumedLiters != null ? Number(props.fuelConsumedLiters) : null
+        const defPct = props.defRemainingPercent != null ? Number(props.defRemainingPercent) : null
+        if (idleH != null) parts.push(`Idle Hours: ${Math.round(idleH).toLocaleString()}`)
+        if (fuelPct != null) parts.push(`Fuel: ${fuelPct.toFixed(0)}%`)
+        if (fuelL != null) parts.push(`Consumed: ${fuelL.toFixed(0)} L`)
+        if (defPct != null) parts.push(`DEF: ${defPct.toFixed(0)}%`)
+        if (parts.length > 0) {
+          jdlinkHtml = `<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;color:#16a34a;font-size:12px">${parts.join('<br/>')}</div>`
+        }
+      }
 
       // Build anomaly warning if applicable
       let reconHtml = ''
@@ -198,22 +241,47 @@ export function MapboxMap({ points, geofences = [], drawMode = false, onDrawComp
         reconHtml = `<div style="border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;color:#f59e0b;font-size:12px">${detail}</div>`
       }
 
+      // Comparison mode: side-by-side HCSS vs JDLink
+      let comparisonHtml = ''
+      const disc = discrepancies?.get(props.equipmentCode)
+      if (comparisonMode && disc) {
+        const hcss = disc.hcss
+        const jdl = disc.jdlink
+        const gpsDist = disc.gpsDistanceMeters != null ? `${Math.round(disc.gpsDistanceMeters)} m` : '—'
+        const hourDiff = disc.engineHoursDiff != null ? `${Math.abs(disc.engineHoursDiff).toFixed(0)} hrs` : '—'
+        comparisonHtml = `<div style="border-top:2px solid #a855f7;margin-top:8px;padding-top:8px;">
+          <div style="color:#a855f7;font-weight:600;font-size:11px;margin-bottom:4px">PROVIDER COMPARISON</div>
+          <table style="width:100%;font-size:11px;border-collapse:collapse">
+            <tr style="color:#64748b"><td></td><td style="font-weight:600;color:#2563eb">HCSS</td><td style="font-weight:600;color:#16a34a">JDLink</td></tr>
+            <tr><td style="color:#64748b">Engine</td><td>${hcss?.engineStatus ?? '—'}</td><td>${jdl?.engineStatus ?? '—'}</td></tr>
+            <tr><td style="color:#64748b">GPS Time</td><td>${formatGpsTime(hcss?.locationDateTime ?? null)}</td><td>${formatGpsTime(jdl?.locationDateTime ?? null)}</td></tr>
+            <tr><td style="color:#64748b">Hours</td><td>${hcss?.hour_meter != null ? Math.round(hcss.hour_meter).toLocaleString() : '—'}</td><td>${jdl?.hour_meter != null ? Math.round(jdl.hour_meter).toLocaleString() : '—'}</td></tr>
+          </table>
+          <div style="margin-top:4px;font-size:11px">
+            ${disc.hasGpsDiscrepancy ? `<span style="color:#ef4444">&#9888; GPS distance: ${gpsDist}</span><br/>` : ''}
+            ${disc.hasHourDiscrepancy ? `<span style="color:#ef4444">&#9888; Hour meter diff: ${hourDiff}</span>` : ''}
+          </div>
+        </div>`
+      }
+
       const engineReportHtml = props.engineStatusAt
         ? `Engine Report: ${formatGpsTime(props.engineStatusAt)}`
         : ''
 
       const html = `<div style="color:#1e293b;font-size:13px;line-height:1.6">
-        ${label ? `<div style="font-weight:600;margin-bottom:2px">${label}</div>` : ''}
+        ${label ? `<div style="font-weight:600;margin-bottom:2px">${label} ${providerBadge}</div>` : `<div>${providerBadge}</div>`}
         <div style="color:#475569">${props.equipmentCode}</div>
         Engine: <span style="color:${statusColor};font-weight:600">${props.engineStatus === 'Active' ? 'Active' : 'Off'}</span><br/>
         ${engineReportHtml ? `<span style="color:#64748b">${engineReportHtml}</span><br/>` : ''}
         GPS: ${formatGpsTime(props.locationDateTime)}
         ${stale ? '<br/><span style="color:#f59e0b">&#9888; GPS stale</span>' : ''}
+        ${jdlinkHtml}
         ${reconHtml}
+        ${comparisonHtml}
       </div>`
 
       popupRef.current?.remove()
-      popupRef.current = new mapboxgl.Popup({ offset: 8, closeButton: false })
+      popupRef.current = new mapboxgl.Popup({ offset: 8, closeButton: false, maxWidth: '320px' })
         .setLngLat(coords)
         .setHTML(html)
         .addTo(map)

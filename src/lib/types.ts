@@ -57,6 +57,8 @@ export interface DispatchEvent {
   notes: string
 }
 
+export type TelematicsProvider = 'HCSS' | 'JDLink'
+
 export interface TelematicsSnapshot {
   equipmentCode: string
   latitude: number
@@ -66,10 +68,16 @@ export interface TelematicsSnapshot {
   engineStatus: string
   engineStatusAt: string | null
   snapshotAt: string
+  provider?: TelematicsProvider
   // Joined from Equipment table for popup display
   make?: string
   model?: string
   equipmentDescription?: string
+  // JDLink-specific fields (AEMP 2.0 / ISO 15143-3)
+  idleHours?: number | null
+  fuelRemainingPercent?: number | null
+  fuelConsumedLiters?: number | null
+  defRemainingPercent?: number | null
   // Anomaly info (joined client-side from Anomaly table)
   anomalyType?: string
   e360_job?: string | null
@@ -77,6 +85,17 @@ export interface TelematicsSnapshot {
   hj_job?: string | null
   hj_job_description?: string | null
   hour_meter?: number | null
+}
+
+/** Per-equipment comparison between HCSS and JDLink telemetry */
+export interface ProviderDiscrepancy {
+  equipmentCode: string
+  hcss: TelematicsSnapshot | null
+  jdlink: TelematicsSnapshot | null
+  gpsDistanceMeters: number | null
+  engineHoursDiff: number | null
+  hasGpsDiscrepancy: boolean
+  hasHourDiscrepancy: boolean
 }
 
 export interface SiteLocation {
