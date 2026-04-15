@@ -111,11 +111,12 @@ export function Overview() {
       setJobCount(jobRes.count ?? 0)
 
       // Equipment coverage: count distinct equipment with telematics data (across all providers)
-      const { count: tracked } = await supabase
+      const { data: trackedEq } = await supabase
         .from('TelematicsSnapshot')
-        .select('equipmentCode', { count: 'exact', head: true })
+        .select('equipmentCode')
         .gte('snapshotAt', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
-      setTrackedCount(tracked ?? 0)
+      const uniqueTracked = new Set(trackedEq?.map(r => r.equipmentCode) ?? [])
+      setTrackedCount(uniqueTracked.size)
 
       // Seed activity feed with recent sync log entries
       if (syncLogRes.data) {
@@ -152,7 +153,7 @@ export function Overview() {
           engineStatus: row.engineStatus as string,
           engineStatusAt: (row.engineStatusAt as string) ?? null,
           snapshotAt: row.snapshotAt as string,
-          provider: (row.provider as TelematicsProvider) ?? undefined,
+          provider: (row.providerKey as TelematicsProvider) ?? undefined,
           make: (row.make as string) ?? '',
           model: (row.model as string) ?? '',
           equipmentDescription: (row.description as string) ?? '',
