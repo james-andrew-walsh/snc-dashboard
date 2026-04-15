@@ -153,21 +153,21 @@ export function Overview() {
           engineStatus: row.engineStatus as string,
           engineStatusAt: (row.engineStatusAt as string) ?? null,
           snapshotAt: row.snapshotAt as string,
-          provider: (row.providerKey as TelematicsProvider) ?? undefined,
+          provider: (row.providerkey as TelematicsProvider) ?? undefined,
           make: (row.make as string) ?? '',
           model: (row.model as string) ?? '',
           equipmentDescription: (row.description as string) ?? '',
           // JDLink-specific fields (AEMP 2.0)
-          idleHours: (row.idleHours as number) ?? null,
-          fuelRemainingPercent: (row.fuelRemainingPercent as number) ?? null,
-          fuelConsumedLiters: (row.fuelConsumedLiters as number) ?? null,
-          defRemainingPercent: (row.defRemainingPercent as number) ?? null,
+          idleHours: (row.idlehours as number) ?? null,
+          fuelRemainingPercent: (row.fuelremainingpercent as number) ?? null,
+          fuelConsumedLiters: (row.fuelconsumedliters as number) ?? null,
+          defRemainingPercent: (row.defremainingpercent as number) ?? null,
           anomalyType: anomaly?.anomalyType ?? undefined,
           e360_job: anomaly?.e360JobCode ?? null,
           e360_location: anomaly?.e360LocationName ?? null,
           hj_job: anomaly?.hjJobCode ?? null,
           hj_job_description: anomaly?.hjJobDescription ?? null,
-          hour_meter: anomaly?.hourMeter ?? (row.hourMeter as number) ?? null,
+          hour_meter: anomaly?.hourMeter ?? (row.hourmeter as number) ?? null,
         }
       })
       setTelematicsPoints(points)
