@@ -113,9 +113,9 @@ export function Overview() {
       // Equipment coverage: count distinct equipment with telematics data (across all providers)
       const { data: trackedEq } = await supabase
         .from('TelematicsSnapshot')
-        .select('equipmentCode')
+        .select('equipmentcode')
         .gte('snapshotAt', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
-      const uniqueTracked = new Set(trackedEq?.map(r => r.equipmentCode) ?? [])
+      const uniqueTracked = new Set(trackedEq?.map(r => r.equipmentcode) ?? [])
       setTrackedCount(uniqueTracked.size)
 
       // Seed activity feed with recent sync log entries
@@ -142,17 +142,17 @@ export function Overview() {
 
       // Map telematics RPC rows + anomaly join to TelematicsSnapshot shape
       const points: TelematicsSnapshot[] = ((telRes.data ?? []) as Record<string, unknown>[]).map(row => {
-        const code = row.equipmentCode as string
+        const code = row.equipmentcode as string
         const anomaly = anomalyMap.get(code)
         return {
           equipmentCode: code,
           latitude: row.latitude as number,
           longitude: row.longitude as number,
-          locationDateTime: (row.locationDateTime as string) ?? null,
-          isLocationStale: row.isLocationStale as boolean,
-          engineStatus: row.engineStatus as string,
-          engineStatusAt: (row.engineStatusAt as string) ?? null,
-          snapshotAt: row.snapshotAt as string,
+          locationDateTime: (row.locationdatetime as string) ?? null,
+          isLocationStale: row.islocationstale as boolean,
+          engineStatus: row.enginestatus as string,
+          engineStatusAt: (row.enginestatusat as string) ?? null,
+          snapshotAt: row.snapshotat as string,
           provider: (row.providerkey as TelematicsProvider) ?? undefined,
           make: (row.make as string) ?? '',
           model: (row.model as string) ?? '',
