@@ -569,9 +569,9 @@ export function Overview() {
       </div>
 
       {/* Map + Locations Panel */}
-      <div className="flex gap-4">
+      <div className="flex flex-col lg:flex-row gap-4">
         {/* Map */}
-        <div className="flex-1 h-[500px] rounded-lg overflow-hidden relative">
+        <div className="flex-1 h-[400px] lg:h-[500px] rounded-lg overflow-hidden relative">
           <MapboxMap
             points={filteredPoints}
             geofences={siteLocations}
@@ -590,7 +590,7 @@ export function Overview() {
         </div>
 
         {/* Locations Panel */}
-        <div className={`bg-slate-800 rounded-lg border border-slate-700 transition-all ${locationsExpanded ? 'w-80' : 'w-10'} flex-shrink-0`}>
+        <div className={`bg-slate-800 rounded-lg border border-slate-700 transition-all ${locationsExpanded ? 'w-full lg:w-80' : 'w-full lg:w-10'} flex-shrink-0`}>
           <button
             onClick={() => setLocationsExpanded(!locationsExpanded)}
             className="w-full px-3 py-3 flex items-center gap-2 text-sm font-semibold text-slate-200 hover:bg-slate-700/50"
