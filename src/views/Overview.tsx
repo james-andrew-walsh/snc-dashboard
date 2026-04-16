@@ -113,9 +113,9 @@ export function Overview() {
       // Equipment coverage: count distinct equipment with telematics data (across all providers)
       const { data: trackedEq } = await supabase
         .from('TelematicsSnapshot')
-        .select('equipmentcode')
+        .select('equipmentCode')
         .gte('snapshotAt', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
-      const uniqueTracked = new Set(trackedEq?.map(r => r.equipmentcode) ?? [])
+      const uniqueTracked = new Set(trackedEq?.map(r => r.equipmentCode) ?? [])
       setTrackedCount(uniqueTracked.size)
 
       // Seed activity feed with recent sync log entries
