@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
 
 export function AuthCallback() {
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing')
@@ -15,14 +16,35 @@ export function AuthCallback() {
         const expiresAt = params.get('expires_at')
 
         if (!accessToken) {
-          setErrorMsg('No access token found in URL.')
-          setStatus('error')
+          // No tokens yet - this is the initial CLI login request
+          // Redirect to Supabase OAuth
+          const query = new URLSearchParams(window.location.search)
+          const redirectUri = query.get('redirect_uri')
+          
+          if (redirectUri) {
+            // Store the CLI's localhost redirect URI in sessionStorage for later
+            sessionStorage.setItem('cli_redirect_uri', redirectUri)
+          }
+          
+          // Redirect to Supabase OAuth
+          const { data, error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+              redirectTo: `${window.location.origin}/auth/callback`,
+            },
+          })
+          
+          if (error) {
+            setErrorMsg(error.message)
+            setStatus('error')
+          } else if (data.url) {
+            window.location.href = data.url
+          }
           return
         }
 
-        // Read redirect_uri from query params
-        const query = new URLSearchParams(window.location.search)
-        const redirectUri = query.get('redirect_uri')
+        // Read redirect_uri from sessionStorage (set during initial CLI request)
+        const redirectUri = sessionStorage.getItem('cli_redirect_uri')
 
         if (redirectUri) {
           // POST tokens to the CLI's local server
@@ -35,6 +57,8 @@ export function AuthCallback() {
               expires_at: expiresAt ? Number(expiresAt) : undefined,
             }),
           })
+          // Clear the stored redirect URI
+          sessionStorage.removeItem('cli_redirect_uri')
         }
 
         setStatus('success')
