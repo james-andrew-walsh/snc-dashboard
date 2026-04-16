@@ -8,12 +8,12 @@ export function AuthCallback() {
   useEffect(() => {
     async function handleCallback() {
       try {
-        // Parse tokens from URL fragment (hash)
+        // Parse tokens from URL fragment (hash) - Supabase returns tokens here
         const hash = window.location.hash.substring(1)
         const params = new URLSearchParams(hash)
         const accessToken = params.get('access_token')
         const refreshToken = params.get('refresh_token')
-        const expiresAt = params.get('expires_at')
+        const expiresIn = params.get('expires_in')
 
         if (!accessToken) {
           // No tokens yet - this is the initial CLI login request
@@ -43,22 +43,19 @@ export function AuthCallback() {
           return
         }
 
-        // Read redirect_uri from sessionStorage (set during initial CLI request)
+        // We have tokens from Supabase OAuth - redirect to CLI localhost with tokens in query string
         const redirectUri = sessionStorage.getItem('cli_redirect_uri')
 
         if (redirectUri) {
-          // POST tokens to the CLI's local server
-          await fetch(redirectUri, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-              expires_at: expiresAt ? Number(expiresAt) : undefined,
-            }),
-          })
-          // Clear the stored redirect URI
-          sessionStorage.removeItem('cli_redirect_uri')
+          // Build URL with tokens in query string (CLI expects this format)
+          const cliUrl = new URL(redirectUri)
+          cliUrl.searchParams.set('access_token', accessToken)
+          if (refreshToken) cliUrl.searchParams.set('refresh_token', refreshToken)
+          if (expiresIn) cliUrl.searchParams.set('expires_in', expiresIn)
+          
+          // Redirect browser to CLI localhost server
+          window.location.href = cliUrl.toString()
+          return
         }
 
         setStatus('success')
