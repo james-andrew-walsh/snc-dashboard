@@ -504,3 +504,42 @@ Unchanged from existing dashboard:
 - Non-JD-Link equipment reconciliation
 - Historical reconciliation (batch processing of past dates)
 - AI inference in the AI Summary panel (stubbed to return static findings for v2)
+
+---
+
+## 13. Change Log
+
+Post-v2 changes shipped on top of the baseline PRD. Each entry documents a discrete change request.
+
+### CR-001 — Magnet Board Horizontal Slider (commit `537903e`, 2026-04-23)
+
+Added slider-based navigation to the Magnet Board so all 23 jobs from the April 17 reconciliation are reachable, not just the first 6.
+
+**Shipped:**
+- Prev/next buttons for stepwise column-group navigation
+- Native range slider bound to current column index
+- Keyboard arrow-key support (left/right to step)
+- Smooth 300ms ease-out slide animation via CSS `transform: translateX()`
+- Virtualization: only renders visible columns + 1 buffer on each side
+- Position indicator (e.g., "1 / 23")
+
+**Files touched:** `src/views/MagnetBoard.tsx`, `src/index.css`
+
+**Reference:** `ARCHIVED/change-requests/CR-magnet-board-slider.md`
+
+---
+
+### CR-002 — Magnet Board Mobile Swipe (commit `8dc6fbc`, 2026-04-23)
+
+Added touch swipe navigation and mobile-responsive column sizing so the Magnet Board is usable on phones and tablets.
+
+**Shipped:**
+- Touch swipe gestures via native `onTouchStart` / `onTouchMove` / `onTouchEnd` handlers
+- 50px swipe threshold to trigger a slide (below threshold = no-op, prevents accidental swipes)
+- Responsive column sizing: 1 column on phone, 2 on tablet, 6 on desktop
+- Vertical scroll preserved — only horizontal swipes trigger navigation
+- All existing desktop controls (prev/next, range slider, keyboard arrows) continue to work
+
+**Files touched:** `src/views/MagnetBoard.tsx`
+
+**Reference:** `ARCHIVED/change-requests/CR-magnet-board-mobile-swipe.md`
