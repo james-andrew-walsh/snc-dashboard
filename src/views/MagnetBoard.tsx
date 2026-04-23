@@ -17,6 +17,9 @@ const DEFAULT_DATE = '2026-04-17'
 const COL_WIDTH = 320
 const BUFFER_COLS = 1
 const SLIDE_MS = 300
+const SWIPE_THRESHOLD = 50
+const MOBILE_BREAKPOINT = 640
+const TABLET_BREAKPOINT = 1024
 
 type RoleFilter = 'all' | 'foreman' | 'equipment'
 type StatusFilter = 'all' | 'flagged' | 'no-data'
@@ -37,6 +40,10 @@ export function MagnetBoard() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [containerWidth, setContainerWidth] = useState(0)
   const viewportRef = useRef<HTMLDivElement>(null)
+  const touchStartX = useRef<number | null>(null)
+  const touchStartY = useRef<number | null>(null)
+  const touchDeltaX = useRef(0)
+  const touchIsHorizontal = useRef(false)
 
   useEffect(() => { listAvailableDates().then(setAvailableDates) }, [])
 
@@ -82,13 +89,50 @@ export function MagnetBoard() {
     })
   }, [snapshot, tolerance])
 
-  const visibleCount = Math.max(1, Math.floor((containerWidth || COL_WIDTH * 6) / COL_WIDTH))
+  const colWidth =
+    containerWidth > 0 && containerWidth < MOBILE_BREAKPOINT
+      ? containerWidth
+      : containerWidth > 0 && containerWidth < TABLET_BREAKPOINT
+        ? Math.floor(containerWidth / 2)
+        : COL_WIDTH
+  const visibleCount = Math.max(1, Math.floor((containerWidth || colWidth * 6) / colWidth))
   const maxIndex = Math.max(0, visibleJobs.length - visibleCount)
   const clampedIndex = Math.min(currentIndex, maxIndex)
   const startIndex = Math.max(0, clampedIndex - BUFFER_COLS)
   const endIndex = Math.min(visibleJobs.length, clampedIndex + visibleCount + BUFFER_COLS)
   const virtualJobs = visibleJobs.slice(startIndex, endIndex)
   const showSlider = visibleJobs.length > visibleCount
+
+  function handleTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0]
+    touchStartX.current = t.clientX
+    touchStartY.current = t.clientY
+    touchDeltaX.current = 0
+    touchIsHorizontal.current = false
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (touchStartX.current == null || touchStartY.current == null) return
+    const t = e.touches[0]
+    const dx = t.clientX - touchStartX.current
+    const dy = t.clientY - touchStartY.current
+    touchDeltaX.current = dx
+    if (!touchIsHorizontal.current && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+      touchIsHorizontal.current = true
+    }
+  }
+
+  function handleTouchEnd() {
+    const dx = touchDeltaX.current
+    if (touchIsHorizontal.current && Math.abs(dx) > SWIPE_THRESHOLD) {
+      if (dx < 0) setCurrentIndex(idx => Math.min(idx + 1, maxIndex))
+      else setCurrentIndex(idx => Math.max(idx - 1, 0))
+    }
+    touchStartX.current = null
+    touchStartY.current = null
+    touchDeltaX.current = 0
+    touchIsHorizontal.current = false
+  }
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -185,22 +229,31 @@ export function MagnetBoard() {
       <div className="flex gap-4">
         {/* ── Board columns ────────────────────────────────────── */}
         <div className="flex-1 min-w-0">
-          <div ref={viewportRef} className="overflow-hidden relative">
+          <div
+            ref={viewportRef}
+            className="overflow-hidden relative select-none"
+            style={{ touchAction: 'pan-y' }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+          >
             <div
               className="flex"
               style={{
-                transform: `translateX(-${clampedIndex * COL_WIDTH}px)`,
+                transform: `translateX(-${clampedIndex * colWidth}px)`,
                 transition: `transform ${SLIDE_MS}ms ease-out`,
                 willChange: 'transform',
               }}
             >
               {startIndex > 0 && (
-                <div style={{ width: `${startIndex * COL_WIDTH}px`, flexShrink: 0 }} aria-hidden />
+                <div style={{ width: `${startIndex * colWidth}px`, flexShrink: 0 }} aria-hidden />
               )}
               {virtualJobs.map(job => (
                 <JobColumn
                   key={job.id}
                   job={job}
+                  width={colWidth}
                   foremen={snapshot.foremen.filter(f => f.job_id === job.id)}
                   equipment={reclassified.filter(e => e.job_id === job.id)}
                   selected={selected}
@@ -341,9 +394,10 @@ function Chip({ children, active, tone, onClick }: { children: React.ReactNode; 
 
 // ── Job column ────────────────────────────────────────────────
 function JobColumn({
-  job, foremen, equipment, selected, onSelect, roleFilter, statusFilter, hideOk,
+  job, width, foremen, equipment, selected, onSelect, roleFilter, statusFilter, hideOk,
 }: {
   job: DispatchJob
+  width: number
   foremen: DispatchForeman[]
   equipment: ReconciliationResult[]
   selected: ReconciliationResult | null
@@ -372,7 +426,10 @@ function JobColumn({
   const foremenInView = foremen.filter(f => showForemen || equipByForeman.has(f.id))
 
   return (
-    <div className="w-[320px] flex-shrink-0 border-r-2 border-slate-300 px-3 pb-6">
+    <div
+      className="flex-shrink-0 border-r-2 border-slate-300 px-3 pb-6"
+      style={{ width: `${width}px` }}
+    >
       <header className="pt-1 pb-2">
         <div className="font-hand text-2xl leading-tight text-slate-900">{job.job_name}</div>
         <div className="flex items-baseline gap-2 mt-1">
