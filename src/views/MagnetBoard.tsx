@@ -19,6 +19,7 @@ const SLIDE_MS = 300
 const SWIPE_THRESHOLD = 50
 const MOBILE_BREAKPOINT = 640
 const TABLET_BREAKPOINT = 1024
+const VARIANCE_TOLERANCE = 0.5
 
 type RoleFilter = 'all' | 'foreman' | 'equipment'
 type StatusFilter = 'all' | 'flagged' | 'no-data'
@@ -33,10 +34,6 @@ export function MagnetBoard() {
   const [jobFilter, setJobFilter] = useState<string | 'all'>('all')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [hideOk, setHideOk] = useState(false)
-  const [aiOpen, setAiOpen] = useState(true)
-  const [tweaksOpen, setTweaksOpen] = useState(false)
-  const [tolerance, setTolerance] = useState(0.5)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [containerWidth, setContainerWidth] = useState(0)
   const [chartMode, setChartMode] = useState<ChartMode>('line')
@@ -85,10 +82,10 @@ export function MagnetBoard() {
       if (e.status === 'skipped' || e.status === 'billed-not-dispatched') return e
       if (e.billed_hours == null || e.actual_hours == null) return { ...e, status: 'no-data' }
       const variance = e.billed_hours - e.actual_hours
-      if (Math.abs(variance) <= tolerance) return { ...e, status: 'ok', variance }
+      if (Math.abs(variance) <= VARIANCE_TOLERANCE) return { ...e, status: 'ok', variance }
       return { ...e, status: variance > 0 ? 'over' : 'under', variance }
     })
-  }, [snapshot, tolerance])
+  }, [snapshot])
 
   const colWidth =
     containerWidth > 0 && containerWidth < MOBILE_BREAKPOINT
@@ -155,11 +152,7 @@ export function MagnetBoard() {
     return <div className="p-8 text-slate-400">Loading magnet board for {date}…</div>
   }
 
-  const findings = reclassified.filter(e => e.status === 'over' || e.status === 'under')
-    .sort((a, b) => Math.abs((b.variance ?? 0)) - Math.abs((a.variance ?? 0)))
-    .slice(0, 12)
-
-  const flaggedCount = findings.length
+  const flaggedCount = reclassified.filter(e => e.status === 'over' || e.status === 'under').length
   const noDataCount = reclassified.filter(e => e.status === 'no-data').length
 
   return (
@@ -219,8 +212,6 @@ export function MagnetBoard() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => setAiOpen(a => !a)} className="rounded-lg bg-slate-900 text-white px-3 py-1.5 text-xs font-semibold">⚘ AI Summary</button>
-          <button onClick={() => setTweaksOpen(t => !t)} className="rounded-lg bg-white border border-slate-400 text-slate-700 px-3 py-1.5 text-xs">Tweaks</button>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/15 px-2.5 py-1 text-xs font-semibold text-red-700">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
@@ -265,7 +256,6 @@ export function MagnetBoard() {
                   onSelect={setSelected}
                   roleFilter={roleFilter}
                   statusFilter={statusFilter}
-                  hideOk={hideOk}
                 />
               ))}
               {visibleJobs.length === 0 && (
@@ -317,54 +307,6 @@ export function MagnetBoard() {
           </div>
         )}
       </div>
-
-      {/* ── AI Summary panel ─────────────────────────────────── */}
-      {aiOpen && (
-        <div className="fixed bottom-4 right-4 w-[360px] max-w-[92vw] bg-[#FFFBEB] border border-amber-300/70 rounded-xl shadow-lg p-4 z-40">
-          <div className="flex items-center justify-between mb-2">
-            <div className="font-semibold text-slate-900 text-sm">⚘ AI Reconciliation Summary</div>
-            <button onClick={() => setAiOpen(false)} className="text-slate-500 hover:text-slate-900 text-lg leading-none">×</button>
-          </div>
-          <p className="text-sm text-slate-700">
-            <b>{flaggedCount}</b> pieces of equipment showing significant variance today.{' '}
-            <b>{noDataCount}</b> have no telematics data.
-          </p>
-          <ul className="mt-3 space-y-2 max-h-60 overflow-y-auto">
-            {findings.map(e => (
-              <li key={e.id}>
-                <button
-                  onClick={() => setSelected(e)}
-                  className="w-full text-left flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-amber-100/60"
-                >
-                  <span className="inline-block rounded bg-slate-900 text-white font-mono text-[10px] px-1.5 py-0.5 mt-0.5">{e.equipment_code}</span>
-                  <span className="text-xs text-slate-700">{findingSentence(e)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-3 text-[10px] text-slate-500">Generated now · local classifier · tolerance ±{tolerance.toFixed(1)}h</div>
-        </div>
-      )}
-
-      {/* ── Tweaks panel ─────────────────────────────────────── */}
-      {tweaksOpen && (
-        <div className="fixed bottom-4 left-4 w-[300px] bg-white border border-slate-300 rounded-xl shadow-lg p-4 z-40">
-          <div className="flex items-center justify-between mb-3">
-            <div className="font-semibold text-slate-900 text-sm">Tweaks</div>
-            <button onClick={() => setTweaksOpen(false)} className="text-slate-500 hover:text-slate-900 text-lg leading-none">×</button>
-          </div>
-          <label className="block text-xs text-slate-600 mb-1">Variance tolerance: <span className="font-mono text-slate-900">±{tolerance.toFixed(1)}h</span></label>
-          <input type="range" min={0} max={2} step={0.1} value={tolerance} onChange={e => setTolerance(parseFloat(e.target.value))} className="w-full accent-orange-500" />
-          <label className="flex items-center gap-2 mt-3 text-xs text-slate-700">
-            <input type="checkbox" checked={hideOk} onChange={e => setHideOk(e.target.checked)} />
-            Hide OK cells
-          </label>
-          <label className="flex items-center gap-2 mt-2 text-xs text-slate-700">
-            <input type="checkbox" checked={aiOpen} onChange={e => setAiOpen(e.target.checked)} />
-            Show AI Summary panel
-          </label>
-        </div>
-      )}
     </div>
   )
 }
@@ -373,15 +315,6 @@ function shiftDate(d: string, days: number): string {
   const dt = new Date(d + 'T00:00:00')
   dt.setDate(dt.getDate() + days)
   return dt.toISOString().slice(0, 10)
-}
-
-function findingSentence(e: ReconciliationResult): string {
-  if (e.status === 'no-data') return `No telematics readings found for today.`
-  const billed = e.billed_hours ?? 0
-  const actual = e.actual_hours ?? 0
-  const variance = e.variance ?? billed - actual
-  const dir = variance > 0 ? 'over-reported' : 'under-reported'
-  return `Billed ${billed.toFixed(1)}h but ran ${actual.toFixed(1)}h — ${dir} by ${Math.abs(variance).toFixed(1)}h.`
 }
 
 function Chip({ children, active, tone, onClick }: { children: React.ReactNode; active?: boolean; tone?: 'flag' | 'grey'; onClick?: () => void }) {
@@ -399,7 +332,7 @@ function Chip({ children, active, tone, onClick }: { children: React.ReactNode; 
 
 // ── Job column ────────────────────────────────────────────────
 function JobColumn({
-  job, width, foremen, equipment, selected, onSelect, roleFilter, statusFilter, hideOk,
+  job, width, foremen, equipment, selected, onSelect, roleFilter, statusFilter,
 }: {
   job: DispatchJob
   width: number
@@ -409,12 +342,10 @@ function JobColumn({
   onSelect: (e: ReconciliationResult) => void
   roleFilter: RoleFilter
   statusFilter: StatusFilter
-  hideOk: boolean
 }) {
   const filteredEquip = equipment.filter(e => {
     if (statusFilter === 'flagged' && !(e.status === 'over' || e.status === 'under')) return false
     if (statusFilter === 'no-data' && e.status !== 'no-data') return false
-    if (hideOk && e.status === 'ok') return false
     return true
   })
 
