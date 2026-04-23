@@ -1,50 +1,82 @@
-# SNC Equipment Reconciliation Dashboard
+# SNC Equipment Reconciliation Dashboard — Claude Code Handoff
+
+**Read `PRD.md` first.** It is the source of truth for all functionality.
+
+## Supabase Project
+- Project: `ghscnwwatguzmeuabspd`
+- Dashboard: https://supabase.com/dashboard/project/ghscnwwatguzmeuabspd
+- API Base: `https://ghscnwwatguzmeuabspd.supabase.co`
+
+## Current Database State
+**Schema must be built from scratch per PRD.md.**
+
+Existing tables (keep, do not delete):
+- `user_profiles` — user accounts, roles, RLS already configured
+- `TelematicsSnapshot` — raw telematics readings (equipmentCode, snapshotAt, hourMeterReadingInHours, etc.)
+- `TelematicsProvider` — provider registry
+- `spatial_ref_sys` — PostGIS (ignore)
+- `auth.users` — Supabase managed (ignore)
+
+**Deleted tables (do not restore):**
+BusinessUnit, Equipment, Job, Location, Employee, DispatchEvent, CrewAssignment, Anomaly, SyncLog, SiteLocation, SiteLocationJob, JobEquipment, TelematicsSnapshot (old — see above), reconciliation_results
+
+## Auth Setup (Preserved)
+- Email/password login via Supabase Auth
+- `user_profiles` table has `id` (FK to auth.users), `role` column
+- Roles: `admin`, `dispatcher`, `read_only`, `agent_write`, `agent_read`
+- Existing users:
+  - james@precisioncompaction.com — admin
+  - brian@mcpnv.com — dispatcher (or similar, confirm)
+  - agent-write@... / agent-read@... service accounts
 
 ## Build Commands
-- `npm run dev` — Start Vite dev server
-- `npm run build` — Production build (TypeScript check + Vite build)
-- `npm run lint` — ESLint check
+- `npm run dev` — Start dev server
+- `npm run build` — Production build (TypeScript check + Vite)
+- `npm run lint` — ESLint
 - `npm run preview` — Preview production build
 
 ## Tech Stack
 - React 19 + TypeScript + Vite 8
-- Tailwind CSS v4 (via @tailwindcss/vite plugin)
-- @supabase/supabase-js for REST + Realtime
+- Tailwind CSS v4
+- @supabase/supabase-js
+- Supabase Edge Functions (for reconciliation engine)
 - State-based routing (no react-router)
 
 ## Project Structure
 ```
 src/
   lib/
-    supabase.ts     — Supabase client
-    types.ts        — TypeScript interfaces (old HCSS types; to be replaced)
+    supabase.ts     — Supabase client (VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY in .env.local)
+    types.ts        — TypeScript interfaces
   hooks/
-    useSupabaseQuery.ts — Generic data fetching hook
+    useSupabaseQuery.ts
   context/
     AuthContext.tsx — Auth provider
   components/
-    Layout.tsx      — Main layout wrapper
-    Sidebar.tsx     — Left nav (report + magnet-board + admin)
+    Layout.tsx
+    Sidebar.tsx     — Nav: Reconciliation Report + Magnet Board + Admin
   pages/
-    Login.tsx       — Login page
-    AuthCallback.tsx — OAuth callback handler
-    Admin.tsx       — User management (admin only)
+    Login.tsx
+    AuthCallback.tsx
+    Admin.tsx
   views/
-    Report.tsx      — Reconciliation Report view (TO BE BUILT)
-    MagnetBoard.tsx  — Magnet Board view (TO BE BUILT)
+    Report.tsx      — TO BE BUILT per PRD.md Section 5.1
+    MagnetBoard.tsx — TO BE BUILT per PRD.md Section 5.2
 ```
 
-## References
-- `PRD.md` — Full product specification. **Read this first.**
-- `references/magnet-board-prd.md` — Magnet Board visual and interaction spec (incorporated into PRD.md Section 5.2)
-- `schema/dispatch-schema.json` — Dispatch report JSON schema
+## Views to Build
+1. **Reconciliation Report** (`/report`) — Data table with filters, summary cards, export
+2. **Magnet Board** (`/magnet-board`) — Visual board per job site
 
-## Auth
-- Supabase email/password auth
-- Roles: `admin`, `dispatcher`, `read_only`, `agent_write`, `agent_read`
-- RLS enabled on all tables
+Both views read from Supabase. Supabase credentials are in `.env.local`.
+
+## References
+- `PRD.md` — Full product specification (read first)
+- `references/magnet-board-prd.md` — Magnet Board interaction spec
+- `schema/dispatch-schema.json` — Dispatch report JSON schema
 
 ## Done Criteria
 - `npm run build` succeeds with zero errors
-- Both views (Report and MagnetBoard) render and read from Supabase
-- Dispatch ingest and reconciliation edge functions are implemented and callable
+- Both views render and read/write from Supabase
+- Reconciliation edge functions are implemented
+- Auth flow works end-to-end
