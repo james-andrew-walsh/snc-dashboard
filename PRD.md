@@ -592,7 +592,7 @@ Made the Magnet Board's job filter dropdown always render and show every availab
 
 ---
 
-### CR-006 — Magnet Board Equipment Detail Panel Uses Live 24-Hour Telematics Data (commit `TBD`, 2026-04-23)
+### CR-006 — Magnet Board Equipment Detail Panel Uses Live 24-Hour Telematics Data (commit `79c073c`, 2026-04-23)
 
 Replaced the deterministic 7-day mock chart in the Magnet Board's equipment detail panel with a live 24-hour line chart driven by real `TelematicsSnapshot` rows for the selected equipment and report date.
 
