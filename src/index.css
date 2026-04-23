@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Caveat:wght@500;600;700&display=swap');
 
 @theme {
   --color-snc-orange: #f97316;
@@ -15,12 +16,58 @@ body {
   min-height: 100vh;
 }
 
+/* ─── Magnet Board design tokens (per magnet-board-prd.md §6.2) ─────────── */
+:root {
+  --board-bg: #F2EFE7;
+  --board-lines: #CFD4D9;
+  --board-lines-strong: #A5ACB4;
+  --ink: #1C2430;
+  --ink-soft: #4A5568;
+  --ink-faint: #6B7380;
+  --paper: #FFFFFF;
+  --paper-dim: #F7FAFC;
+
+  --role-foreman: #C53030;
+  --role-operator: #E2B93B;
+  --role-laborer: #2F855A;
+  --role-equipment: #2B6CB0;
+
+  --flag: #E53E3E;
+  --warn: #DD6B20;
+  --ok: #2F855A;
+}
+
+.font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+.font-hand { font-family: 'Caveat', cursive; }
+
 /* Flash animation for realtime updates */
 @keyframes flash-highlight {
   0% { background-color: var(--color-snc-flash); }
   100% { background-color: transparent; }
 }
+.flash-row { animation: flash-highlight 1s ease-out; }
 
-.flash-row {
-  animation: flash-highlight 1s ease-out;
+/* Flag pulse — infinite slow red glow on flagged magnets */
+@keyframes flag-pulse {
+  0%, 100% { box-shadow: 0 0 0 1.5px var(--flag), 0 0 0 0 rgba(229, 62, 62, 0); }
+  50%      { box-shadow: 0 0 0 1.5px var(--flag), 0 0 0 3px rgba(229, 62, 62, 0.35); }
+}
+.flag-pulse { animation: flag-pulse 2.2s ease-in-out infinite; }
+
+/* Diagonal stripes for no-data cells */
+.stripes-nodata {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(107, 115, 128, 0.15) 0 4px,
+    transparent 4px 10px
+  );
+}
+
+/* Whiteboard texture background */
+.board-surface {
+  background-color: var(--board-bg);
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 47px, rgba(165, 172, 180, 0.18) 47px 48px),
+    radial-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+  background-size: auto, 6px 6px;
 }

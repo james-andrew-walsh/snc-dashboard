@@ -1,166 +1,81 @@
-export interface BusinessUnit {
+export type ReconStatus = 'ok' | 'over' | 'under' | 'no-data' | 'skipped' | 'billed-not-dispatched' | 'unknown'
+
+export type EquipmentKind =
+  | 'TRUCK' | 'LOADER' | 'EXCAVATOR' | 'RENTAL' | 'TRAILER'
+  | 'ROLLER' | 'MISC' | 'DOZER' | 'GRADER' | 'PAVER'
+
+export type TelematicsProvider = 'JDLink' | 'VisionLink' | 'e360' | 'MyKomatsu' | 'NO TLMTRY' | null
+
+export interface DispatchReport {
   id: string
-  code: string
-  description: string
-}
-
-export interface Equipment {
-  id: string
-  businessUnitId: string
-  code: string
-  make: string
-  model: string
-  year: number
-  serialNumber: string
-  hourMeter: number
-  odometer: number
-  isRental: boolean
-  isActive: boolean
-  status: 'Available' | 'In Use' | 'Down'
-}
-
-export interface Job {
-  id: string
-  businessUnitId: string
-  code: string
-  description: string
-  locationId: string | null
-}
-
-export interface Location {
-  id: string
-  businessUnitId: string
-  code: string
-  description: string
-  latitude: number | null
-  longitude: number | null
-  geofence: number[][] | null
-}
-
-export interface Employee {
-  id: string
-  businessUnitId: string
-  firstName: string
-  lastName: string
-  employeeCode: string
-  role: string
-}
-
-export interface DispatchEvent {
-  id: string
-  equipmentId: string
-  jobId: string
-  locationId: string
-  operatorId: string
-  startDate: string
-  endDate: string
-  notes: string
-}
-
-export type TelematicsProvider = 'e360' | 'jdlink'
-
-export interface TelematicsSnapshot {
-  equipmentCode: string
-  latitude: number
-  longitude: number
-  locationDateTime: string | null
-  isLocationStale: boolean
-  engineStatus: string
-  engineStatusAt: string | null
-  snapshotAt: string
-  provider?: TelematicsProvider
-  // Joined from Equipment table for popup display
-  make?: string
-  model?: string
-  equipmentDescription?: string
-  // JDLink-specific fields (AEMP 2.0 / ISO 15143-3)
-  idleHours?: number | null
-  fuelRemainingPercent?: number | null
-  fuelConsumedLiters?: number | null
-  defRemainingPercent?: number | null
-  // Anomaly info (joined client-side from Anomaly table)
-  anomalyType?: string
-  e360_job?: string | null
-  e360_location?: string | null
-  hj_job?: string | null
-  hj_job_description?: string | null
-  hour_meter?: number | null
-}
-
-/** Per-equipment comparison between HCSS and JDLink telemetry */
-export interface ProviderDiscrepancy {
-  equipmentCode: string
-  hcss: TelematicsSnapshot | null
-  jdlink: TelematicsSnapshot | null
-  gpsDistanceMeters: number | null
-  engineHoursDiff: number | null
-  hasGpsDiscrepancy: boolean
-  hasHourDiscrepancy: boolean
-}
-
-export interface SiteLocation {
-  id: string
-  name: string
-  description: string | null
-  centerLat: number | null
-  centerLng: number | null
-  polygon: GeoJSON.Polygon | null
-  radiusMeters: number | null
-  createdBy: string | null
-  createdAt: string
-  updatedAt: string
-}
-
-export interface SiteLocationJob {
-  id: string
-  siteLocationId: string
-  jobHcssId: string | null
-  jobCode: string
-  jobDescription: string | null
-  createdAt: string
-}
-
-export interface SyncLog {
-  id: string
-  providerKey: string
-  providerName: string
-  status: 'success' | 'error'
-  rowsInserted: number | null
-  durationMs: number | null
-  errorMessage: string | null
-  details: Record<string, unknown> | null
-  completedAt: string
-}
-
-export interface Anomaly {
-  id: string
-  equipmentCode: string
-  equipmentHcssId: string | null
-  siteLocationId: string
-  anomalyType: 'ANOMALY_NO_HJ' | 'DISPUTED' | 'NOT_IN_EITHER'
-  severity: 'warning' | 'error' | 'info'
-  e360JobCode: string | null
-  e360LocationName: string | null
-  hjJobCode: string | null
-  hjJobDescription: string | null
-  engineStatus: string | null
-  hourMeter: number | null
-  latitude: number | null
-  longitude: number | null
-  detectedAt: string
-  resolvedAt: string | null
-  reconciliationRunId: string | null
-  SiteLocation?: { name: string }
-}
-
-export interface CrewAssignment {
-  id: string
-  jobId: string
-  employeeId: string
-  role: string
-  startDate: string
-  endDate: string | null
+  report_date: string
+  source_file: string | null
+  status: 'pending' | 'ingested' | 'reconciled' | 'error'
   notes: string | null
-  createdAt: string
-  updatedAt: string
+}
+
+export interface DispatchJob {
+  id: string
+  report_id: string
+  job_code: string
+  job_name: string
+  heavyjob_uuid: string | null
+  location?: string | null
+  contact?: string | null
+  daily_notes?: string | null
+}
+
+export interface DispatchForeman {
+  id: string
+  report_id: string
+  job_id: string
+  foreman_code: string
+  foreman_name: string
+  timecard_id: string | null
+  timecard_rev: number | null
+  dispatch_assigned: number
+  timecard_equipment_count: number
+}
+
+export interface ReconciliationResult {
+  id: string
+  report_id: string
+  job_id: string
+  foreman_id: string | null
+  foreman_code: string | null
+  equipment_code: string
+  description: string | null
+  kind: EquipmentKind | string
+  provider: TelematicsProvider | string
+  sched_hours: number | null
+  billed_hours: number | null
+  actual_hours: number | null
+  variance: number | null
+  status: ReconStatus | string
+  reading_count: number | null
+  notes: string | null
+}
+
+export interface DashboardSummary {
+  total: number
+  flagged: number
+  passed: number
+  no_data: number
+  skipped: number
+  billed_not_dispatched: number
+}
+
+export interface ReconciliationSnapshot {
+  report: DispatchReport
+  jobs: DispatchJob[]
+  foremen: DispatchForeman[]
+  equipment: ReconciliationResult[]
+  summary: DashboardSummary
+}
+
+export interface HistoryPoint {
+  day: number
+  sched: number | null
+  billed: number | null
+  ran: number | null
 }
