@@ -546,7 +546,7 @@ Added touch swipe navigation and mobile-responsive column sizing so the Magnet B
 
 ---
 
-### CR-003 — Report Column Reorder for Mobile Visibility (commit `TBD`, 2026-04-23)
+### CR-003 — Report Column Reorder for Mobile Visibility (commit `4dbc99e`, 2026-04-23)
 
 Reordered the Reconciliation Report table columns so Status and Variance — the most important signals — appear immediately after Equipment instead of at the far right, where they were pushed off-screen on mobile.
 
