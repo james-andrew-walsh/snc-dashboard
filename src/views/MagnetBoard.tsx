@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   deterministicHistory,
   fetchSnapshot,
@@ -14,6 +14,9 @@ import type {
 } from '../lib/types'
 
 const DEFAULT_DATE = '2026-04-17'
+const COL_WIDTH = 320
+const BUFFER_COLS = 1
+const SLIDE_MS = 300
 
 type RoleFilter = 'all' | 'foreman' | 'equipment'
 type StatusFilter = 'all' | 'flagged' | 'no-data'
@@ -31,8 +34,23 @@ export function MagnetBoard() {
   const [aiOpen, setAiOpen] = useState(true)
   const [tweaksOpen, setTweaksOpen] = useState(false)
   const [tolerance, setTolerance] = useState(0.5)
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [containerWidth, setContainerWidth] = useState(0)
+  const viewportRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { listAvailableDates().then(setAvailableDates) }, [])
+
+  useEffect(() => {
+    const el = viewportRef.current
+    if (!el) return
+    const update = () => setContainerWidth(el.clientWidth)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  useEffect(() => { setCurrentIndex(0) }, [jobFilter, date])
 
   useEffect(() => {
     let alive = true
@@ -63,6 +81,30 @@ export function MagnetBoard() {
       return { ...e, status: variance > 0 ? 'over' : 'under', variance }
     })
   }, [snapshot, tolerance])
+
+  const visibleCount = Math.max(1, Math.floor((containerWidth || COL_WIDTH * 6) / COL_WIDTH))
+  const maxIndex = Math.max(0, visibleJobs.length - visibleCount)
+  const clampedIndex = Math.min(currentIndex, maxIndex)
+  const startIndex = Math.max(0, clampedIndex - BUFFER_COLS)
+  const endIndex = Math.min(visibleJobs.length, clampedIndex + visibleCount + BUFFER_COLS)
+  const virtualJobs = visibleJobs.slice(startIndex, endIndex)
+  const showSlider = visibleJobs.length > visibleCount
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return
+      if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        setCurrentIndex(idx => Math.min(idx + 1, maxIndex))
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        setCurrentIndex(idx => Math.max(idx - 1, 0))
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [maxIndex])
 
   if (loading || !snapshot) {
     return <div className="p-8 text-slate-400">Loading magnet board for {date}…</div>
@@ -142,25 +184,66 @@ export function MagnetBoard() {
 
       <div className="flex gap-4">
         {/* ── Board columns ────────────────────────────────────── */}
-        <div className="flex-1 overflow-x-auto">
-          <div className="inline-flex gap-0 min-w-full">
-            {visibleJobs.map(job => (
-              <JobColumn
-                key={job.id}
-                job={job}
-                foremen={snapshot.foremen.filter(f => f.job_id === job.id)}
-                equipment={reclassified.filter(e => e.job_id === job.id)}
-                selected={selected}
-                onSelect={setSelected}
-                roleFilter={roleFilter}
-                statusFilter={statusFilter}
-                hideOk={hideOk}
-              />
-            ))}
-            {visibleJobs.length === 0 && (
-              <div className="p-12 text-slate-500">No jobs match the current filters.</div>
-            )}
+        <div className="flex-1 min-w-0">
+          <div ref={viewportRef} className="overflow-hidden relative">
+            <div
+              className="flex"
+              style={{
+                transform: `translateX(-${clampedIndex * COL_WIDTH}px)`,
+                transition: `transform ${SLIDE_MS}ms ease-out`,
+                willChange: 'transform',
+              }}
+            >
+              {startIndex > 0 && (
+                <div style={{ width: `${startIndex * COL_WIDTH}px`, flexShrink: 0 }} aria-hidden />
+              )}
+              {virtualJobs.map(job => (
+                <JobColumn
+                  key={job.id}
+                  job={job}
+                  foremen={snapshot.foremen.filter(f => f.job_id === job.id)}
+                  equipment={reclassified.filter(e => e.job_id === job.id)}
+                  selected={selected}
+                  onSelect={setSelected}
+                  roleFilter={roleFilter}
+                  statusFilter={statusFilter}
+                  hideOk={hideOk}
+                />
+              ))}
+              {visibleJobs.length === 0 && (
+                <div className="p-12 text-slate-500">No jobs match the current filters.</div>
+              )}
+            </div>
           </div>
+
+          {showSlider && (
+            <div className="mt-4 flex items-center gap-3 px-1">
+              <button
+                onClick={() => setCurrentIndex(idx => Math.max(idx - 1, 0))}
+                disabled={clampedIndex === 0}
+                aria-label="Previous columns"
+                className="rounded-lg border border-slate-400 bg-white px-2.5 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >‹</button>
+              <input
+                type="range"
+                min={0}
+                max={maxIndex}
+                value={clampedIndex}
+                onChange={e => setCurrentIndex(parseInt(e.target.value, 10))}
+                aria-label="Slide between job columns"
+                className="flex-1 accent-orange-500"
+              />
+              <span className="font-mono text-xs text-slate-700 whitespace-nowrap tabular-nums">
+                {clampedIndex + 1} / {visibleJobs.length}
+              </span>
+              <button
+                onClick={() => setCurrentIndex(idx => Math.min(idx + 1, maxIndex))}
+                disabled={clampedIndex >= maxIndex}
+                aria-label="Next columns"
+                className="rounded-lg border border-slate-400 bg-white px-2.5 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >›</button>
+            </div>
+          )}
         </div>
 
         {/* ── Side detail panel ────────────────────────────────── */}
