@@ -73,9 +73,7 @@ export interface ReconciliationSnapshot {
   summary: DashboardSummary
 }
 
-export interface HistoryPoint {
-  day: number
-  sched: number | null
-  billed: number | null
-  ran: number | null
+export interface TelematicsPoint {
+  snapshotAt: string
+  hourMeter: number | null
 }

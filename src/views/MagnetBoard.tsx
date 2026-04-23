@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  deterministicHistory,
   fetchSnapshot,
+  fetchTelematicsForDate,
   listAvailableDates,
-  mergeHistoryWithToday,
 } from '../data/adapter'
 import type {
   DispatchForeman,
   DispatchJob,
-  HistoryPoint,
   ReconciliationResult,
   ReconciliationSnapshot,
+  TelematicsPoint,
 } from '../lib/types'
 
 const DEFAULT_DATE = '2026-04-17'
@@ -305,13 +304,13 @@ export function MagnetBoard() {
 
         {/* ── Side detail panel ────────────────────────────────── */}
         <aside className="hidden xl:flex w-[380px] flex-shrink-0 flex-col bg-white rounded-xl border border-slate-300 shadow-sm sticky top-4 self-start max-h-[calc(100vh-6rem)] overflow-y-auto">
-          <SidePanel equipment={selected} onClose={() => setSelected(null)} />
+          <SidePanel equipment={selected} reportDate={date} onClose={() => setSelected(null)} />
         </aside>
 
         {selected && (
           <div className="xl:hidden fixed inset-0 z-50 bg-black/40" onClick={() => setSelected(null)}>
             <div className="absolute right-0 top-0 h-full w-full sm:w-[380px] bg-white overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <SidePanel equipment={selected} onClose={() => setSelected(null)} />
+              <SidePanel equipment={selected} reportDate={date} onClose={() => setSelected(null)} />
             </div>
           </div>
         )}
@@ -555,18 +554,34 @@ function MetricCell({ label, value, striped, flagged }: { label: string; value: 
 }
 
 // ── Side panel ────────────────────────────────────────────────
-function SidePanel({ equipment, onClose }: { equipment: ReconciliationResult | null; onClose: () => void }) {
+function SidePanel({ equipment, reportDate, onClose }: { equipment: ReconciliationResult | null; reportDate: string; onClose: () => void }) {
+  const [telematics, setTelematics] = useState<TelematicsPoint[]>([])
+  const [telLoading, setTelLoading] = useState(false)
+
+  useEffect(() => {
+    if (!equipment) {
+      setTelematics([])
+      return
+    }
+    let alive = true
+    setTelLoading(true)
+    fetchTelematicsForDate(equipment.equipment_code, reportDate).then(points => {
+      if (!alive) return
+      setTelematics(points)
+      setTelLoading(false)
+    })
+    return () => { alive = false }
+  }, [equipment?.equipment_code, reportDate])
+
   if (!equipment) {
     return (
       <div className="p-6 h-full flex flex-col items-center justify-center text-center">
         <div className="text-4xl mb-3 opacity-40">◉</div>
         <div className="text-sm font-semibold text-slate-700">No cell selected</div>
-        <div className="text-xs text-slate-500 mt-1">Click any equipment magnet to see detail + 7-day trend.</div>
+        <div className="text-xs text-slate-500 mt-1">Click any equipment magnet to see detail and the 24-hour hour-meter trace.</div>
       </div>
     )
   }
-
-  const history = mergeHistoryWithToday(deterministicHistory(equipment.equipment_code), equipment)
 
   return (
     <div className="flex flex-col h-full">
@@ -600,13 +615,13 @@ function SidePanel({ equipment, onClose }: { equipment: ReconciliationResult | n
         </div>
 
         <div className="pt-2">
-          <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">7-Day Trend</div>
-          <TrendChart history={history} />
-          <div className="flex gap-3 text-[10px] text-slate-500 mt-1">
-            <span><span className="inline-block w-3 border-t border-dashed border-slate-400 align-middle mr-1" />Scheduled</span>
-            <span><span className="inline-block w-3 border-t-2 border-blue-600 align-middle mr-1" />Billed</span>
-            <span><span className="inline-block w-3 border-t-2 border-orange-500 align-middle mr-1" />Ran</span>
+          <div className="flex items-baseline justify-between mb-1">
+            <div className="text-[10px] uppercase tracking-widest text-slate-500">Hour Meter · {reportDate} (PDT)</div>
+            {telematics.length > 0 && (
+              <div className="text-[10px] text-slate-500">{telematics.length} reading{telematics.length === 1 ? '' : 's'}</div>
+            )}
           </div>
+          <DayChart points={telematics} loading={telLoading} />
         </div>
 
         <div className="pt-2 flex gap-2">
@@ -651,35 +666,68 @@ function KeyVal({ k, v }: { k: string; v: string }) {
   )
 }
 
-function TrendChart({ history }: { history: HistoryPoint[] }) {
-  const W = 320, H = 90, P = 16
-  const max = Math.max(...history.flatMap(p => [p.sched ?? 0, p.billed ?? 0, p.ran ?? 0]), 1)
-  const x = (i: number) => P + (i * (W - 2 * P)) / Math.max(history.length - 1, 1)
-  const y = (v: number | null) => v == null ? H - P : H - P - (v / max) * (H - 2 * P)
-  const line = (k: keyof HistoryPoint, includeNull = false) =>
-    history.map((p, i) => {
-      const v = p[k] as number | null
-      if (v == null && !includeNull) return null
-      return `${i === 0 ? 'M' : 'L'}${x(i)},${y(v)}`
-    }).filter(Boolean).join(' ')
+// 24-hour line chart of TelematicsSnapshot.hourMeterReadingInHours, x-axis in PDT.
+function DayChart({ points, loading }: { points: TelematicsPoint[]; loading: boolean }) {
+  if (loading) {
+    return <div className="h-32 rounded border border-slate-200 bg-slate-50 animate-pulse" />
+  }
+
+  const valued = points.filter((p): p is TelematicsPoint & { hourMeter: number } => p.hourMeter != null)
+  if (valued.length === 0) {
+    return (
+      <div className="h-32 rounded border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center px-3 text-center">
+        <span className="text-xs text-slate-500">No telematics data for this equipment on this date</span>
+      </div>
+    )
+  }
+
+  const W = 320, H = 130, PL = 36, PR = 10, PT = 8, PB = 22
+  const xs = valued.map(p => utcToPdtHourFloat(p.snapshotAt))
+  const ys = valued.map(p => p.hourMeter)
+  const yMin = Math.min(...ys)
+  const yMax = Math.max(...ys)
+  const yRange = Math.max(yMax - yMin, 0.1)
+  const x = (h: number) => PL + (h / 24) * (W - PL - PR)
+  const y = (v: number) => PT + (1 - (v - yMin) / yRange) * (H - PT - PB)
+
+  const path = valued.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(xs[i]).toFixed(1)},${y(p.hourMeter).toFixed(1)}`).join(' ')
+  const gridHours = [0, 6, 12, 18, 24]
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-24">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-32" role="img" aria-label="24-hour hour meter trace">
       <rect x="0" y="0" width={W} height={H} fill="white" />
       {[0.25, 0.5, 0.75].map(f => (
-        <line key={f} x1={P} x2={W - P} y1={H - P - f * (H - 2 * P)} y2={H - P - f * (H - 2 * P)} stroke="#E2E8F0" strokeWidth="1" />
+        <line key={f} x1={PL} x2={W - PR} y1={PT + f * (H - PT - PB)} y2={PT + f * (H - PT - PB)} stroke="#E2E8F0" strokeWidth="1" />
       ))}
-      <path d={line('sched')} stroke="#A0AEC0" strokeWidth="1.5" strokeDasharray="4 3" fill="none" />
-      <path d={line('billed')} stroke="#2B6CB0" strokeWidth="2" fill="none" />
-      <path d={line('ran')} stroke="#DD6B20" strokeWidth="2" fill="none" />
-      {history.map((p, i) => (
-        <g key={i}>
-          {p.ran != null && <circle cx={x(i)} cy={y(p.ran)} r="2.5" fill="#DD6B20" />}
-          {p.billed != null && <circle cx={x(i)} cy={y(p.billed)} r="2" fill="#2B6CB0" />}
+      {gridHours.map(h => (
+        <g key={h}>
+          <line x1={x(h)} x2={x(h)} y1={PT} y2={H - PB} stroke="#F1F5F9" strokeWidth="1" />
+          <text x={x(h)} y={H - PB + 12} fontSize="9" fill="#64748B" textAnchor="middle">{String(h).padStart(2, '0')}</text>
         </g>
       ))}
-      <text x={P} y={H - 2} fontSize="8" fill="#718096">-{history.length - 1}d</text>
-      <text x={W - P - 18} y={H - 2} fontSize="8" fill="#718096">TODAY</text>
+      <text x={PL - 4} y={y(yMax)} fontSize="9" fill="#64748B" textAnchor="end" dominantBaseline="middle">{yMax.toFixed(1)}</text>
+      <text x={PL - 4} y={y(yMin)} fontSize="9" fill="#64748B" textAnchor="end" dominantBaseline="middle">{yMin.toFixed(1)}</text>
+      <path d={path} stroke="#DD6B20" strokeWidth="2" fill="none" />
+      {valued.map((p, i) => (
+        <circle key={i} cx={x(xs[i])} cy={y(p.hourMeter)} r="2" fill="#DD6B20">
+          <title>{`${formatPdtClock(p.snapshotAt)} · ${p.hourMeter.toFixed(2)}h`}</title>
+        </circle>
+      ))}
     </svg>
   )
+}
+
+function utcToPdtHourFloat(snapshotAt: string): number {
+  // PDT = UTC-7. Subtract 7h then read hour-of-day.
+  const utcMs = new Date(snapshotAt).getTime()
+  const pdt = new Date(utcMs - 7 * 3600 * 1000)
+  return pdt.getUTCHours() + pdt.getUTCMinutes() / 60 + pdt.getUTCSeconds() / 3600
+}
+
+function formatPdtClock(snapshotAt: string): string {
+  const utcMs = new Date(snapshotAt).getTime()
+  const pdt = new Date(utcMs - 7 * 3600 * 1000)
+  const hh = String(pdt.getUTCHours()).padStart(2, '0')
+  const mm = String(pdt.getUTCMinutes()).padStart(2, '0')
+  return `${hh}:${mm} PDT`
 }

@@ -589,3 +589,19 @@ Made the Magnet Board's job filter dropdown always render and show every availab
 **Files touched:** `src/views/MagnetBoard.tsx`
 
 **Reference:** `ARCHIVED/change-requests/CR-magnet-board-job-filter-scroll.md`
+
+---
+
+### CR-006 — Magnet Board Equipment Detail Panel Uses Live 24-Hour Telematics Data (commit `TBD`, 2026-04-23)
+
+Replaced the deterministic 7-day mock chart in the Magnet Board's equipment detail panel with a live 24-hour line chart driven by real `TelematicsSnapshot` rows for the selected equipment and report date.
+
+**Shipped:**
+- New `fetchTelematicsForDate(equipmentCode, reportDate)` adapter queries `TelematicsSnapshot` for the 24-hour PDT window covering the report date (00:00–24:00 PDT, i.e. 07:00–07:00 UTC the following day)
+- Detail panel renders a `DayChart` SVG line chart of `hourMeterReadingInHours` over PDT hours 00–24, with min/max axis labels and per-point tooltips
+- Empty state message ("No telematics data for this equipment on this date") shown when the query returns no rows
+- Removed `deterministicHistory` / `mergeHistoryWithToday` mock helpers and the unused `HistoryPoint` type
+
+**Files touched:** `src/views/MagnetBoard.tsx`, `src/data/adapter.ts`, `src/lib/types.ts`
+
+**Reference:** `ARCHIVED/change-requests/CR-magnet-board-equipment-chart-live-data.md`
