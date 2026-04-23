@@ -558,3 +558,18 @@ Reordered the Reconciliation Report table columns so Status and Variance — the
 **Files touched:** `src/views/Report.tsx`
 
 **Reference:** `ARCHIVED/change-requests/CR-report-column-reorder-mobile.md`
+
+---
+
+### CR-004 — Report Column Reorder v2 (commit `TBD`, 2026-04-23)
+
+Further reordered the Reconciliation Report columns so Status and Variance appear before Equipment, pushing the two most important signals to the left edge for mobile visibility on the first screen.
+
+**Shipped:**
+- New column order: Job | Foreman | **Status** | **Variance** | Equipment | Description | Sched | Billed | Actual
+- Status and Variance now surface before Equipment on mobile, visible without horizontal scrolling
+- Sort behavior preserved for every column
+
+**Files touched:** `src/views/Report.tsx`
+
+**Reference:** `ARCHIVED/change-requests/CR-report-column-reorder-v2.md`
