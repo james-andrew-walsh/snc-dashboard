@@ -623,3 +623,15 @@ Added a swipe-to-toggle gesture on the Magnet Board's equipment detail chart, le
 **Files touched:** `src/views/MagnetBoard.tsx`
 
 **Reference:** `ARCHIVED/change-requests/CR-magnet-board-chart-histogram-swipe.md`
+
+---
+
+### CR-008 — Remove AI Summary and Tweaks Panels (commit `2b86aeb`, 2026-04-23)
+
+Removed the AI Summary panel and Tweaks panel entirely from the Magnet Board.
+
+**Shipped:**
+- AI Summary panel section removed
+- Tweaks panel section removed
+- Related state (`aiOpen`, `tweaksOpen`, `hideOk`, `tolerance`) removed
+- All other functionality preserved (board, slider, job filter, equipment detail, chart modes)
