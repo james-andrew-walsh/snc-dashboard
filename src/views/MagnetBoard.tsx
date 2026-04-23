@@ -194,12 +194,16 @@ export function MagnetBoard() {
           {snapshot.jobs.slice(0, 5).map(j => (
             <Chip key={j.id} active={jobFilter === j.id} onClick={() => setJobFilter(j.id)}>{j.job_code}</Chip>
           ))}
-          {snapshot.jobs.length > 5 && (
-            <select value={jobFilter} onChange={e => setJobFilter(e.target.value)} className="bg-white border border-slate-400 rounded-lg px-2 py-1 text-xs text-slate-700">
-              <option value="all">All jobs…</option>
-              {snapshot.jobs.map(j => <option key={j.id} value={j.id}>{j.job_code} — {j.job_name.slice(0, 24)}</option>)}
-            </select>
-          )}
+          <select
+            value={jobFilter}
+            onChange={e => setJobFilter(e.target.value)}
+            className="bg-white border border-slate-400 rounded-lg px-2 py-1 text-xs text-slate-700 max-w-[260px]"
+          >
+            <option value="all">All Jobs</option>
+            {snapshot.jobs.map(j => (
+              <option key={j.id} value={j.id}>{j.job_code} — {j.job_name}</option>
+            ))}
+          </select>
         </div>
 
         <div className="flex items-center gap-1 ml-2">

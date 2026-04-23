@@ -573,3 +573,19 @@ Further reordered the Reconciliation Report columns so Status and Variance appea
 **Files touched:** `src/views/Report.tsx`
 
 **Reference:** `ARCHIVED/change-requests/CR-report-column-reorder-v2.md`
+
+---
+
+### CR-005 — Magnet Board Job Filter Dropdown Scrollable (commit `TBD`, 2026-04-23)
+
+Made the Magnet Board's job filter dropdown always render and show every available job with full code + name, so all 23 jobs are reachable from the filter.
+
+**Shipped:**
+- Dropdown always visible (previously only rendered when job count > 5)
+- Every job listed with full `job_code — job_name` label (no 24-char truncation)
+- "All Jobs" option pinned at the top
+- Native `<select>` provides built-in scrollable overflow when the list exceeds viewport height
+
+**Files touched:** `src/views/MagnetBoard.tsx`
+
+**Reference:** `ARCHIVED/change-requests/CR-magnet-board-job-filter-scroll.md`
