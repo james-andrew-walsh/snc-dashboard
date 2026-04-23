@@ -608,7 +608,7 @@ Replaced the deterministic 7-day mock chart in the Magnet Board's equipment deta
 
 ---
 
-### CR-007 — Magnet Board Equipment Detail Chart: Swipe to Toggle Line ↔ Bar Histogram (commit `TBD`, 2026-04-23)
+### CR-007 — Magnet Board Equipment Detail Chart: Swipe to Toggle Line ↔ Bar Histogram (commit `5d4cf70`, 2026-04-23)
 
 Added a swipe-to-toggle gesture on the Magnet Board's equipment detail chart, letting users switch between the cumulative line chart and a per-hour bar histogram of hours run. Selected mode persists across equipment cards.
 
