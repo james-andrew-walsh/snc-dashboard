@@ -576,7 +576,7 @@ Further reordered the Reconciliation Report columns so Status and Variance appea
 
 ---
 
-### CR-005 — Magnet Board Job Filter Dropdown Scrollable (commit `TBD`, 2026-04-23)
+### CR-005 — Magnet Board Job Filter Dropdown Scrollable (commit `43186b4`, 2026-04-23)
 
 Made the Magnet Board's job filter dropdown always render and show every available job with full code + name, so all 23 jobs are reachable from the filter.
 
