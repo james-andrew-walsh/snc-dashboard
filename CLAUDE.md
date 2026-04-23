@@ -1,4 +1,4 @@
-# SNC Equipment Tracking Dashboard
+# SNC Equipment Reconciliation Dashboard
 
 ## Build Commands
 - `npm run dev` — Start Vite dev server
@@ -10,33 +10,41 @@
 - React 19 + TypeScript + Vite 8
 - Tailwind CSS v4 (via @tailwindcss/vite plugin)
 - @supabase/supabase-js for REST + Realtime
-- State-based routing (no react-router in views)
+- State-based routing (no react-router)
 
 ## Project Structure
 ```
 src/
-  lib/supabase.ts     — Supabase client
-  lib/types.ts        — TypeScript interfaces for all DB tables
-  hooks/useSupabaseQuery.ts — Generic data fetching hook
-  hooks/useRealtime.ts      — Realtime subscription with flash highlight
-  components/Layout.tsx     — Main layout wrapper
-  components/Sidebar.tsx    — Left nav with mobile hamburger
-  components/DataTable.tsx  — Reusable table component
-  components/StatusBadge.tsx — Equipment status badge
-  components/MetricCard.tsx  — Overview metric cards
-  components/MapboxMap.tsx   — Map placeholder (Phase 1.3)
-  views/Overview.tsx        — Dashboard overview with metrics + activity feed
-  views/BusinessUnits.tsx   — Business units table
-  views/Equipment.tsx       — Equipment table with realtime + status badges
-  views/JobsLocations.tsx   — Jobs & Locations split view
-  views/Employees.tsx       — Employee roster
-  views/DispatchSchedule.tsx — Dispatch events with realtime
+  lib/
+    supabase.ts     — Supabase client
+    types.ts        — TypeScript interfaces (old HCSS types; to be replaced)
+  hooks/
+    useSupabaseQuery.ts — Generic data fetching hook
+  context/
+    AuthContext.tsx — Auth provider
+  components/
+    Layout.tsx      — Main layout wrapper
+    Sidebar.tsx     — Left nav (report + magnet-board + admin)
+  pages/
+    Login.tsx       — Login page
+    AuthCallback.tsx — OAuth callback handler
+    Admin.tsx       — User management (admin only)
+  views/
+    Report.tsx      — Reconciliation Report view (TO BE BUILT)
+    MagnetBoard.tsx  — Magnet Board view (TO BE BUILT)
 ```
 
-## Supabase Tables
-BusinessUnit, Equipment, Job, Location, Employee, DispatchEvent
+## References
+- `PRD.md` — Full product specification. **Read this first.**
+- `references/magnet-board-prd.md` — Magnet Board visual and interaction spec (incorporated into PRD.md Section 5.2)
+- `schema/dispatch-schema.json` — Dispatch report JSON schema
+
+## Auth
+- Supabase email/password auth
+- Roles: `admin`, `dispatcher`, `read_only`, `agent_write`, `agent_read`
+- RLS enabled on all tables
 
 ## Done Criteria
 - `npm run build` succeeds with zero errors
-- All 6 views render and fetch data from Supabase
-- Equipment and DispatchEvent views have realtime subscriptions with flash highlight
+- Both views (Report and MagnetBoard) render and read from Supabase
+- Dispatch ingest and reconciliation edge functions are implemented and callable

@@ -5,35 +5,21 @@ import { AuthCallback } from './pages/AuthCallback'
 import { Admin } from './pages/Admin'
 import { Layout } from './components/Layout'
 import type { ViewId } from './components/Sidebar'
-import { Overview } from './views/Overview'
-import { BusinessUnits } from './views/BusinessUnits'
-import { Jobs } from './views/Jobs'
-import { Locations } from './views/Locations'
-import { EquipmentView } from './views/Equipment'
 import { MagnetBoard } from './views/MagnetBoard'
-import { Discrepancies } from './views/Discrepancies'
+import { Report } from './views/Report'
 
 const views: Record<ViewId, React.FC> = {
   'magnet-board': MagnetBoard,
-  'overview': Overview,
-  'business-units': BusinessUnits,
-  'jobs': Jobs,
-  'locations': Locations,
-  'equipment': EquipmentView,
-  'discrepancies': Discrepancies,
+  'report': Report,
   'admin': Admin,
 }
 
 function AuthenticatedApp() {
   const { role } = useAuth()
-  const [activeView, setActiveView] = useState<ViewId>('overview')
+  const [activeView, setActiveView] = useState<ViewId>('report')
 
-  // Guard: non-admin users cannot access admin view
   const handleNavigate = useCallback((view: ViewId) => {
-    if (view === 'admin' && role !== 'admin') {
-      setActiveView('overview')
-      return
-    }
+    if (view === 'admin' && role !== 'admin') return
     setActiveView(view)
   }, [role])
 
@@ -50,7 +36,6 @@ function AppRouter() {
   const { session } = useAuth()
   const path = window.location.pathname
 
-  // Public routes
   if (path === '/auth/callback') return <AuthCallback />
   if (!session) return <Login />
 

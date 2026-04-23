@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SNC Daily Dispatch Report",
+  "description": "Schema for Sierra Nevada Construction daily dispatch PDF extraction",
+  "type": "object",
+  "required": ["metadata", "jobs", "equipmentStatus"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["company", "reportDate", "printedDate"],
+      "properties": {
+        "company": {
+          "type": "string",
+          "description": "Company name"
+        },
+        "reportDate": {
+          "type": "string",
+          "format": "date",
+          "description": "Date of the dispatch report (YYYY-MM-DD)"
+        },
+        "printedDate": {
+          "type": "string",
+          "format": "date",
+          "description": "Date the report was printed (YYYY-MM-DD)"
+        },
+        "reportType": {
+          "type": "string",
+          "const": "Daily Schedule Report"
+        }
+      }
+    },
+    "jobs": {
+      "type": "array",
+      "description": "List of job sites in the dispatch",
+      "items": {
+        "type": "object",
+        "required": ["jobId", "name", "resources"],
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Unique job identifier (e.g., 11699)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Full job name (e.g., FORTIS - STY2A)"
+          },
+          "location": {
+            "type": "string",
+            "description": "Street address of job site"
+          },
+          "contact": {
+            "type": "string",
+            "description": "Primary contact name(s) for this job"
+          },
+          "dailyNotes": {
+            "type": "string",
+            "description": "Day's notes: crew, tasks, special instructions"
+          },
+          "resources": {
+            "type": "array",
+            "description": "All resources assigned to this job",
+            "items": {
+              "type": "object",
+              "required": ["resourceId", "description", "startTime", "endTime"],
+              "properties": {
+                "resourceId": {
+                  "type": "string",
+                  "description": "Short resource ID code (e.g., DOUGRE, 9940, R41074)"
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Full human-readable description"
+                },
+                "startTime": {
+                  "type": "string",
+                  "pattern": "^([01]?\\d|2[0-3]):([0-5]\\d)\\s?(AM|PM)$",
+                  "description": "Shift start (e.g., 07:00 AM)"
+                },
+                "endTime": {
+                  "type": "string",
+                  "pattern": "^([01]?\\d|2[0-3]):([0-5]\\d)\\s?(AM|PM)$",
+                  "description": "Shift end (e.g., 04:00 PM)"
+                },
+                "status": {
+                  "type": ["string", "null"],
+                  "enum": ["STAND", "AVAIL", "DOWN", "STAND-BY", null],
+                  "description": "Operational status: STAND=rental standby, AVAIL=available, DOWN=under repair"
+                },
+                "resourceType": {
+                  "type": "string",
+                  "enum": ["personnel", "equipment", "attachment", "subcontractor"],
+                  "description": "Category of resource"
+                },
+                "role": {
+                  "type": ["string", "null"],
+                  "description": "For personnel: role code (e.g., FOREMAN, SUPT, OE-4MAN, LABORER, CARPENTER)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "equipmentStatus": {
+      "type": "object",
+      "description": "Pool of equipment not assigned to active jobs (yard, repairs, etc.)",
+      "properties": {
+        "repairs": {
+          "type": "array",
+          "description": "Equipment down for repair",
+          "items": {
+            "type": "object",
+            "required": ["resourceId", "description"],
+            "properties": {
+              "resourceId": { "type": "string" },
+              "description": { "type": "string" },
+              "status": { "type": "string", "const": "DOWN" }
+            }
+          }
+        },
+        "yard": {
+          "type": "array",
+          "description": "Equipment available in yard",
+          "items": {
+            "type": "object",
+            "required": ["resourceId", "description"],
+            "properties": {
+              "resourceId": { "type": "string" },
+              "description": { "type": "string" },
+              "status": { "type": "string", "const": "AVAIL" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
