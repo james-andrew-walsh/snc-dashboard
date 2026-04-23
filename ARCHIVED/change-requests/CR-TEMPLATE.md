@@ -59,3 +59,9 @@ Draft — awaiting execution
 ## Done
 
 When complete, also update PRD.md: Add an entry to the Change Log section documenting what was built.
+
+---
+
+## Commit Message
+
+When committing, include the full CR text in the commit message body (not just the title) so the change is self-documenting in git log. Format: first line is the commit title (e.g. 'CR-003: ...'), subsequent lines contain the full CR content as a code block or inline text.
