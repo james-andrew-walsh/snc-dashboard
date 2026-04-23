@@ -638,7 +638,7 @@ Removed the AI Summary panel and Tweaks panel entirely from the Magnet Board.
 
 ---
 
-### CR-009 — Magnet Board Font: Replace Script Font with Bold Sans-Serif (commit `TBD`, 2026-04-23)
+### CR-009 — Magnet Board Font: Replace Script Font with Bold Sans-Serif (commit `775fb79`, 2026-04-23)
 
 Replaced the cursive/script Caveat font used for the "Dispatch Board" header and per-column job names with a bold sans-serif, so the board reads more like a construction-site whiteboard and less like a greeting card.
 
