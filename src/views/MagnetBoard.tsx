@@ -596,7 +596,7 @@ function SidePanel({ equipment, reportDate, onClose, chartMode, onChartModeChang
         <button onClick={onClose} className="text-slate-400 hover:text-slate-900 text-xl leading-none">×</button>
       </header>
 
-      <section className="p-4 space-y-3">
+      <section className="p-4 space-y-3 overflow-x-hidden">
         <div className="text-[10px] uppercase tracking-widest text-slate-500">Today · Reconciliation</div>
         <div className="grid grid-cols-3 gap-2">
           <Tile label="Scheduled" value={equipment.sched_hours} />
@@ -734,7 +734,7 @@ function DayChart({ points, loading, mode, onModeChange }: { points: TelematicsP
     onTouchMove: handleTouchMove,
     onTouchEnd: handleTouchEnd,
     onTouchCancel: handleTouchEnd,
-    style: { touchAction: 'pan-y' as const },
+    style: { touchAction: 'none' as const },
     className: 'transition-opacity duration-200 select-none',
   }
 
