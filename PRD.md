@@ -561,7 +561,7 @@ Reordered the Reconciliation Report table columns so Status and Variance — the
 
 ---
 
-### CR-004 — Report Column Reorder v2 (commit `TBD`, 2026-04-23)
+### CR-004 — Report Column Reorder v2 (commit `9b531c8`, 2026-04-23)
 
 Further reordered the Reconciliation Report columns so Status and Variance appear before Equipment, pushing the two most important signals to the left edge for mobile visibility on the first screen.
 
