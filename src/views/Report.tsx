@@ -283,12 +283,12 @@ export function Report() {
                 <Th col="job_code"       sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Job</Th>
                 <Th col="foreman_name"   sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Foreman</Th>
                 <Th col="equipment_code" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Equipment</Th>
+                <Th col="status"         sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Status</Th>
+                <Th col="variance"       sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right">Variance h</Th>
                 <Th col="description"    sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Description</Th>
                 <Th col="sched_hours"    sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right">Sched h</Th>
                 <Th col="billed_hours"   sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right">Billed h</Th>
                 <Th col="actual_hours"   sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right">Actual h</Th>
-                <Th col="variance"       sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right">Variance h</Th>
-                <Th col="status"         sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Status</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
@@ -337,12 +337,12 @@ function DataRow({ r }: { r: Row }) {
         {r.foreman_code && <div className="text-[10px] font-mono text-slate-500">{r.foreman_code}</div>}
       </td>
       <td className="px-3 py-2 font-mono text-slate-100">{r.equipment_code}</td>
+      <td className="px-3 py-2"><StatusChip status={r.status} /></td>
+      <td className={`px-3 py-2 font-mono text-right font-semibold ${varianceColor(r)}`}>{fmtVar(r.variance)}</td>
       <td className="px-3 py-2 text-slate-300 max-w-[360px] truncate" title={r.description ?? ''}>{r.description}</td>
       <td className="px-3 py-2 font-mono text-right">{fmtH(r.sched_hours)}</td>
       <td className="px-3 py-2 font-mono text-right">{fmtH(r.billed_hours)}</td>
       <td className="px-3 py-2 font-mono text-right">{fmtH(r.actual_hours)}</td>
-      <td className={`px-3 py-2 font-mono text-right font-semibold ${varianceColor(r)}`}>{fmtVar(r.variance)}</td>
-      <td className="px-3 py-2"><StatusChip status={r.status} /></td>
     </tr>
   )
 }

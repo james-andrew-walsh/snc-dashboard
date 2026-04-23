@@ -543,3 +543,18 @@ Added touch swipe navigation and mobile-responsive column sizing so the Magnet B
 **Files touched:** `src/views/MagnetBoard.tsx`
 
 **Reference:** `ARCHIVED/change-requests/CR-magnet-board-mobile-swipe.md`
+
+---
+
+### CR-003 — Report Column Reorder for Mobile Visibility (commit `TBD`, 2026-04-23)
+
+Reordered the Reconciliation Report table columns so Status and Variance — the most important signals — appear immediately after Equipment instead of at the far right, where they were pushed off-screen on mobile.
+
+**Shipped:**
+- New column order: Job | Foreman | Equipment | **Status** | **Variance** | Description | Sched | Billed | Actual
+- Status and Variance are now visible on phones without horizontal scrolling
+- Sort behavior preserved for every column
+
+**Files touched:** `src/views/Report.tsx`
+
+**Reference:** `ARCHIVED/change-requests/CR-report-column-reorder-mobile.md`
