@@ -22,6 +22,7 @@ const TABLET_BREAKPOINT = 1024
 
 type RoleFilter = 'all' | 'foreman' | 'equipment'
 type StatusFilter = 'all' | 'flagged' | 'no-data'
+type ChartMode = 'line' | 'bar'
 
 export function MagnetBoard() {
   const [date, setDate] = useState(DEFAULT_DATE)
@@ -38,6 +39,7 @@ export function MagnetBoard() {
   const [tolerance, setTolerance] = useState(0.5)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [containerWidth, setContainerWidth] = useState(0)
+  const [chartMode, setChartMode] = useState<ChartMode>('line')
   const viewportRef = useRef<HTMLDivElement>(null)
   const touchStartX = useRef<number | null>(null)
   const touchStartY = useRef<number | null>(null)
@@ -304,13 +306,13 @@ export function MagnetBoard() {
 
         {/* ── Side detail panel ────────────────────────────────── */}
         <aside className="hidden xl:flex w-[380px] flex-shrink-0 flex-col bg-white rounded-xl border border-slate-300 shadow-sm sticky top-4 self-start max-h-[calc(100vh-6rem)] overflow-y-auto">
-          <SidePanel equipment={selected} reportDate={date} onClose={() => setSelected(null)} />
+          <SidePanel equipment={selected} reportDate={date} onClose={() => setSelected(null)} chartMode={chartMode} onChartModeChange={setChartMode} />
         </aside>
 
         {selected && (
           <div className="xl:hidden fixed inset-0 z-50 bg-black/40" onClick={() => setSelected(null)}>
             <div className="absolute right-0 top-0 h-full w-full sm:w-[380px] bg-white overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <SidePanel equipment={selected} reportDate={date} onClose={() => setSelected(null)} />
+              <SidePanel equipment={selected} reportDate={date} onClose={() => setSelected(null)} chartMode={chartMode} onChartModeChange={setChartMode} />
             </div>
           </div>
         )}
@@ -554,7 +556,7 @@ function MetricCell({ label, value, striped, flagged }: { label: string; value: 
 }
 
 // ── Side panel ────────────────────────────────────────────────
-function SidePanel({ equipment, reportDate, onClose }: { equipment: ReconciliationResult | null; reportDate: string; onClose: () => void }) {
+function SidePanel({ equipment, reportDate, onClose, chartMode, onChartModeChange }: { equipment: ReconciliationResult | null; reportDate: string; onClose: () => void; chartMode: ChartMode; onChartModeChange: (m: ChartMode) => void }) {
   const [telematics, setTelematics] = useState<TelematicsPoint[]>([])
   const [telLoading, setTelLoading] = useState(false)
 
@@ -616,12 +618,36 @@ function SidePanel({ equipment, reportDate, onClose }: { equipment: Reconciliati
 
         <div className="pt-2">
           <div className="flex items-baseline justify-between mb-1">
-            <div className="text-[10px] uppercase tracking-widest text-slate-500">Hour Meter · {reportDate} (PDT)</div>
+            <div className="text-[10px] uppercase tracking-widest text-slate-500">
+              {chartMode === 'line' ? '24-Hour Hour Meter' : 'Hours Run Per Hour'} · {reportDate} (PDT)
+            </div>
             {telematics.length > 0 && (
               <div className="text-[10px] text-slate-500">{telematics.length} reading{telematics.length === 1 ? '' : 's'}</div>
             )}
           </div>
-          <DayChart points={telematics} loading={telLoading} />
+          <DayChart points={telematics} loading={telLoading} mode={chartMode} onModeChange={onChartModeChange} />
+          <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[10px] text-slate-500 select-none">
+            <button
+              type="button"
+              onClick={() => onChartModeChange('line')}
+              aria-label="Line chart mode"
+              className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${chartMode === 'line' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              <span aria-hidden>∿</span>
+              <span>Line</span>
+            </button>
+            <span className="text-slate-300">·</span>
+            <button
+              type="button"
+              onClick={() => onChartModeChange('bar')}
+              aria-label="Bar histogram mode"
+              className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${chartMode === 'bar' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              <span aria-hidden>▮</span>
+              <span>Bars</span>
+            </button>
+            <span className="ml-1 text-slate-400 hidden sm:inline">· swipe to switch</span>
+          </div>
         </div>
 
         <div className="pt-2 flex gap-2">
@@ -666,21 +692,75 @@ function KeyVal({ k, v }: { k: string; v: string }) {
   )
 }
 
-// 24-hour line chart of TelematicsSnapshot.hourMeterReadingInHours, x-axis in PDT.
-function DayChart({ points, loading }: { points: TelematicsPoint[]; loading: boolean }) {
+// 24-hour chart of TelematicsSnapshot.hourMeterReadingInHours, x-axis in PDT.
+// Renders either a line chart (cumulative hour meter) or a bar histogram
+// (per-hour delta). Swipe left/right toggles between modes.
+function DayChart({ points, loading, mode, onModeChange }: { points: TelematicsPoint[]; loading: boolean; mode: ChartMode; onModeChange: (m: ChartMode) => void }) {
+  const touchStartX = useRef<number | null>(null)
+  const touchStartY = useRef<number | null>(null)
+  const touchDeltaX = useRef(0)
+  const touchIsHorizontal = useRef(false)
+
+  function handleTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0]
+    touchStartX.current = t.clientX
+    touchStartY.current = t.clientY
+    touchDeltaX.current = 0
+    touchIsHorizontal.current = false
+  }
+  function handleTouchMove(e: React.TouchEvent) {
+    if (touchStartX.current == null || touchStartY.current == null) return
+    const t = e.touches[0]
+    const dx = t.clientX - touchStartX.current
+    const dy = t.clientY - touchStartY.current
+    touchDeltaX.current = dx
+    if (!touchIsHorizontal.current && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+      touchIsHorizontal.current = true
+    }
+  }
+  function handleTouchEnd() {
+    const dx = touchDeltaX.current
+    if (touchIsHorizontal.current && Math.abs(dx) > SWIPE_THRESHOLD) {
+      onModeChange(mode === 'line' ? 'bar' : 'line')
+    }
+    touchStartX.current = null
+    touchStartY.current = null
+    touchDeltaX.current = 0
+    touchIsHorizontal.current = false
+  }
+
+  const wrapperProps = {
+    onTouchStart: handleTouchStart,
+    onTouchMove: handleTouchMove,
+    onTouchEnd: handleTouchEnd,
+    onTouchCancel: handleTouchEnd,
+    style: { touchAction: 'pan-y' as const },
+    className: 'transition-opacity duration-200 select-none',
+  }
+
   if (loading) {
-    return <div className="h-32 rounded border border-slate-200 bg-slate-50 animate-pulse" />
+    return <div {...wrapperProps}><div className="h-32 rounded border border-slate-200 bg-slate-50 animate-pulse" /></div>
   }
 
   const valued = points.filter((p): p is TelematicsPoint & { hourMeter: number } => p.hourMeter != null)
   if (valued.length === 0) {
     return (
-      <div className="h-32 rounded border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center px-3 text-center">
-        <span className="text-xs text-slate-500">No telematics data for this equipment on this date</span>
+      <div {...wrapperProps}>
+        <div className="h-32 rounded border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center px-3 text-center">
+          <span className="text-xs text-slate-500">No telematics data for this equipment on this date</span>
+        </div>
       </div>
     )
   }
 
+  return (
+    <div {...wrapperProps} key={mode}>
+      {mode === 'line' ? <LineChartSvg valued={valued} /> : <BarHistogramSvg valued={valued} />}
+    </div>
+  )
+}
+
+function LineChartSvg({ valued }: { valued: (TelematicsPoint & { hourMeter: number })[] }) {
   const W = 320, H = 130, PL = 36, PR = 10, PT = 8, PB = 22
   const xs = valued.map(p => utcToPdtHourFloat(p.snapshotAt))
   const ys = valued.map(p => p.hourMeter)
@@ -713,6 +793,68 @@ function DayChart({ points, loading }: { points: TelematicsPoint[]; loading: boo
           <title>{`${formatPdtClock(p.snapshotAt)} · ${p.hourMeter.toFixed(2)}h`}</title>
         </circle>
       ))}
+    </svg>
+  )
+}
+
+function BarHistogramSvg({ valued }: { valued: (TelematicsPoint & { hourMeter: number })[] }) {
+  const W = 320, H = 130, PL = 36, PR = 10, PT = 8, PB = 22
+
+  // Bucket the last reading observed within each PDT hour 0..23.
+  const readingByHour: (number | null)[] = Array(24).fill(null)
+  for (const p of valued) {
+    const h = Math.floor(utcToPdtHourFloat(p.snapshotAt))
+    if (h >= 0 && h < 24) readingByHour[h] = p.hourMeter
+  }
+
+  // Per-hour deltas using carry-forward of the previous known reading.
+  // Negative deltas (meter rollovers / corrections) are clamped to 0.
+  const deltas: number[] = Array(24).fill(0)
+  let prev: number | null = null
+  for (let h = 0; h < 24; h++) {
+    const cur = readingByHour[h]
+    if (cur != null && prev != null) deltas[h] = Math.max(0, cur - prev)
+    if (cur != null) prev = cur
+  }
+
+  const yMax = Math.max(...deltas, 0.5)
+  const x = (h: number) => PL + (h / 24) * (W - PL - PR)
+  const y = (v: number) => PT + (1 - v / yMax) * (H - PT - PB)
+  const barWidth = ((W - PL - PR) / 24) * 0.78
+  const gridHours = [0, 6, 12, 18, 24]
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-32" role="img" aria-label="Hours run per hour histogram">
+      <rect x="0" y="0" width={W} height={H} fill="white" />
+      {[0.25, 0.5, 0.75].map(f => (
+        <line key={f} x1={PL} x2={W - PR} y1={PT + f * (H - PT - PB)} y2={PT + f * (H - PT - PB)} stroke="#E2E8F0" strokeWidth="1" />
+      ))}
+      {gridHours.map(h => (
+        <g key={h}>
+          <line x1={x(h)} x2={x(h)} y1={PT} y2={H - PB} stroke="#F1F5F9" strokeWidth="1" />
+          <text x={x(h)} y={H - PB + 12} fontSize="9" fill="#64748B" textAnchor="middle">{String(h).padStart(2, '0')}</text>
+        </g>
+      ))}
+      <text x={PL - 4} y={y(yMax)} fontSize="9" fill="#64748B" textAnchor="end" dominantBaseline="middle">{yMax.toFixed(1)}</text>
+      <text x={PL - 4} y={y(0)} fontSize="9" fill="#64748B" textAnchor="end" dominantBaseline="middle">0.0</text>
+      {deltas.map((d, h) => {
+        const cx = x(h + 0.5)
+        const yTop = y(d)
+        const yBot = y(0)
+        return (
+          <rect
+            key={h}
+            x={cx - barWidth / 2}
+            y={yTop}
+            width={barWidth}
+            height={Math.max(0, yBot - yTop)}
+            fill={d > 0 ? '#DD6B20' : '#E2E8F0'}
+            rx="1"
+          >
+            <title>{`${String(h).padStart(2, '0')}:00 PDT · ${d.toFixed(2)}h run`}</title>
+          </rect>
+        )
+      })}
     </svg>
   )
 }

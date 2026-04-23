@@ -605,3 +605,21 @@ Replaced the deterministic 7-day mock chart in the Magnet Board's equipment deta
 **Files touched:** `src/views/MagnetBoard.tsx`, `src/data/adapter.ts`, `src/lib/types.ts`
 
 **Reference:** `ARCHIVED/change-requests/CR-magnet-board-equipment-chart-live-data.md`
+
+---
+
+### CR-007 — Magnet Board Equipment Detail Chart: Swipe to Toggle Line ↔ Bar Histogram (commit `TBD`, 2026-04-23)
+
+Added a swipe-to-toggle gesture on the Magnet Board's equipment detail chart, letting users switch between the cumulative line chart and a per-hour bar histogram of hours run. Selected mode persists across equipment cards.
+
+**Shipped:**
+- Two chart modes: `line` (existing 24-hour hour-meter trace) and `bar` (24-bar histogram of `hourMeterReadingInHours[t] − hourMeterReadingInHours[t−1]`, negative deltas clamped to 0 to absorb meter rollovers)
+- Carry-forward bucketing handles sparse hours so missing readings don't drop bars to zero spuriously
+- Horizontal swipe (50px threshold, vertical scroll preserved via `touch-action: pan-y`) toggles between modes — same gesture pattern as the board's column navigation
+- Mode indicator with clickable Line/Bars pills below the chart for desktop users; "swipe to switch" hint shown on ≥sm widths
+- Chart title swaps between "24-Hour Hour Meter" and "Hours Run Per Hour" based on mode
+- `chartMode` lives in `MagnetBoard` state (default `line`) so the user's choice persists when switching between equipment cards
+
+**Files touched:** `src/views/MagnetBoard.tsx`
+
+**Reference:** `ARCHIVED/change-requests/CR-magnet-board-chart-histogram-swipe.md`
