@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Caveat:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 @theme {
   --color-snc-orange: #f97316;
@@ -38,7 +38,6 @@ body {
 }
 
 .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
-.font-hand { font-family: 'Caveat', cursive; }
 
 /* Flash animation for realtime updates */
 @keyframes flash-highlight {

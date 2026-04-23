@@ -162,7 +162,7 @@ export function MagnetBoard() {
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-lg bg-orange-500 flex items-center justify-center font-bold text-white text-sm">SNC</div>
           <div>
-            <div className="font-hand text-2xl leading-none text-slate-900">Dispatch Board</div>
+            <div className="font-extrabold tracking-tight text-2xl leading-none text-slate-900">Dispatch Board</div>
             <div className="text-xs text-slate-600">Equipment · Reconciliation</div>
           </div>
         </div>
@@ -367,7 +367,7 @@ function JobColumn({
       style={{ width: `${width}px` }}
     >
       <header className="pt-1 pb-2">
-        <div className="font-hand text-2xl leading-tight text-slate-900">{job.job_name}</div>
+        <div className="font-extrabold tracking-tight text-2xl leading-tight text-slate-900">{job.job_name}</div>
         <div className="flex items-baseline gap-2 mt-1">
           <span className="font-mono text-xs text-slate-700 bg-white border border-slate-300 rounded px-1.5 py-0.5">{job.job_code}</span>
           {job.heavyjob_uuid && <span className="font-mono text-[10px] text-slate-500">hj {job.heavyjob_uuid.slice(0, 8)}</span>}

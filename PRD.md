@@ -635,3 +635,19 @@ Removed the AI Summary panel and Tweaks panel entirely from the Magnet Board.
 - Tweaks panel section removed
 - Related state (`aiOpen`, `tweaksOpen`, `hideOk`, `tolerance`) removed
 - All other functionality preserved (board, slider, job filter, equipment detail, chart modes)
+
+---
+
+### CR-009 — Magnet Board Font: Replace Script Font with Bold Sans-Serif (commit `TBD`, 2026-04-23)
+
+Replaced the cursive/script Caveat font used for the "Dispatch Board" header and per-column job names with a bold sans-serif, so the board reads more like a construction-site whiteboard and less like a greeting card.
+
+**Shipped:**
+- "Dispatch Board" title now rendered in `font-extrabold tracking-tight` (Inter 800, the already-loaded body font)
+- Job name on each column header switched to the same bold sans-serif treatment
+- Unused `.font-hand` utility class removed from `src/index.css`
+- Caveat dropped from the Google Fonts `@import` URL, since nothing else references it
+
+**Files touched:** `src/views/MagnetBoard.tsx`, `src/index.css`
+
+**Reference:** `ARCHIVED/change-requests/CR-magnet-board-font.md`
