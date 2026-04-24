@@ -19,6 +19,23 @@ function baseHeaders(token: string): Record<string, string> {
   };
 }
 
+// Retry wrapper for transient 502/503 errors from HCSS load balancer.
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  label: string,
+  maxRetries = 3,
+): Promise<Response> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const resp = await fetch(url, init);
+    if (resp.ok || (resp.status !== 502 && resp.status !== 503)) return resp;
+    console.warn(`[${label}] attempt ${attempt}/${maxRetries} got ${resp.status}, retrying...`);
+    if (attempt < maxRetries) await new Promise(r => setTimeout(r, 2000 * attempt));
+    else return resp; // return the last failed response
+  }
+  throw new Error('unreachable');
+}
+
 export async function getHcssToken(
   clientId: string,
   clientSecret: string,
@@ -55,7 +72,7 @@ export interface HcssJob {
 
 export async function getHcssJobs(buId: string, token: string): Promise<HcssJob[]> {
   const url = `${HCSS_BASE}/jobs?businessUnitId=${encodeURIComponent(buId)}&$top=9999`;
-  const resp = await fetch(url, { headers: baseHeaders(token) });
+  const resp = await fetchWithRetry(url, { headers: baseHeaders(token) }, 'HCSS jobs');
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`HCSS jobs failed (${resp.status}): ${text.slice(0, 300)}`);
@@ -78,7 +95,7 @@ export async function getHcssTimecardsForJobOnDate(
   token: string,
 ): Promise<HcssTimecardSummary[]> {
   const url = `${HCSS_BASE}/timeCardInfo?jobId=${encodeURIComponent(jobUuid)}`;
-  const resp = await fetch(url, { headers: baseHeaders(token) });
+  const resp = await fetchWithRetry(url, { headers: baseHeaders(token) }, 'HCSS timeCardInfo');
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`HCSS timeCardInfo failed (${resp.status}): ${text.slice(0, 300)}`);
@@ -114,7 +131,7 @@ export async function getHcssTimecardDetail(
   token: string,
 ): Promise<HcssTimecardDetail> {
   const url = `${HCSS_BASE}/timecards/${encodeURIComponent(timecardId)}`;
-  const resp = await fetch(url, { headers: baseHeaders(token) });
+  const resp = await fetchWithRetry(url, { headers: baseHeaders(token) }, 'HCSS timecard detail');
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`HCSS timecard detail failed (${resp.status}): ${text.slice(0, 300)}`);

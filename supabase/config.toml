@@ -1,0 +1,7 @@
+project_id = "ghscnwwatguzmeuabspd"
+
+[functions.dispatch-extract]
+verify_jwt = true
+
+[functions.run-reconciliation]
+verify_jwt = true
