@@ -199,6 +199,8 @@ async function reconcile(reportDate: string) {
     const details: HcssTimecardDetail[] = [];
     for (const tc of timecards) {
       details.push(await getHcssTimecardDetail(tc.id, hcssToken));
+      // Throttle to avoid HCSS 429 rate limits
+      if (timecards.length > 1) await new Promise(r => setTimeout(r, 300));
     }
 
     // Build maps across all timecards for this job:

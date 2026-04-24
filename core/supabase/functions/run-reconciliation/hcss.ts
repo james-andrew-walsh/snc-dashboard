@@ -19,19 +19,32 @@ function baseHeaders(token: string): Record<string, string> {
   };
 }
 
-// Retry wrapper for transient 502/503 errors from HCSS load balancer.
+// Retry wrapper for transient 429/502/503 errors from HCSS load balancer.
 async function fetchWithRetry(
   url: string,
   init: RequestInit,
   label: string,
-  maxRetries = 3,
+  maxRetries = 5,
 ): Promise<Response> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const resp = await fetch(url, init);
-    if (resp.ok || (resp.status !== 502 && resp.status !== 503)) return resp;
-    console.warn(`[${label}] attempt ${attempt}/${maxRetries} got ${resp.status}, retrying...`);
-    if (attempt < maxRetries) await new Promise(r => setTimeout(r, 2000 * attempt));
-    else return resp; // return the last failed response
+    if (resp.ok || (resp.status !== 429 && resp.status !== 502 && resp.status !== 503)) return resp;
+    let waitMs = 2000 * attempt;
+    if (resp.status === 429) {
+      // Parse retry-after from response body or header
+      const retryAfter = resp.headers.get('retry-after');
+      if (retryAfter) {
+        waitMs = (parseInt(retryAfter, 10) || 10) * 1000;
+      } else {
+        // Try to parse from body
+        const text = await resp.text();
+        const match = text.match(/(\d+)\s*seconds/);
+        waitMs = match ? (parseInt(match[1], 10) + 1) * 1000 : 10_000;
+      }
+    }
+    console.warn(`[${label}] attempt ${attempt}/${maxRetries} got ${resp.status}, waiting ${waitMs}ms...`);
+    if (attempt < maxRetries) await new Promise(r => setTimeout(r, waitMs));
+    else return resp;
   }
   throw new Error('unreachable');
 }
