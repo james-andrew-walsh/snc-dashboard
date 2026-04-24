@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { fetchSnapshot, listAvailableDates } from '../data/adapter'
+import { supabase } from '../lib/supabase'
 import type { ReconciliationSnapshot } from '../lib/types'
 
 const DEFAULT_DATE = '2026-04-17'
@@ -49,6 +50,8 @@ export function Report() {
   const [sortKey, setSortKey] = useState<SortKey>('job_code')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [busy, setBusy] = useState<string | null>(null)
+  const [runError, setRunError] = useState<string | null>(null)
+  const [reloadTick, setReloadTick] = useState(0)
 
   useEffect(() => {
     listAvailableDates().then(setAvailableDates)
@@ -64,7 +67,23 @@ export function Report() {
       }
     })
     return () => { alive = false }
-  }, [date])
+  }, [date, reloadTick])
+
+  async function runReconciliation() {
+    setBusy('reconcile')
+    setRunError(null)
+    try {
+      const { error } = await supabase.functions.invoke('run-reconciliation', {
+        body: { reportDate: date },
+      })
+      if (error) throw new Error(error.message)
+      setReloadTick(t => t + 1)
+    } catch (err) {
+      setRunError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(null)
+    }
+  }
 
   const canIngest = role === 'admin' || role === 'dispatcher'
   const canReconcile = role === 'admin'
@@ -230,9 +249,9 @@ export function Report() {
           </button>
           <button
             disabled={!canReconcile || busy !== null}
-            onClick={() => { setBusy('reconcile'); setTimeout(() => setBusy(null), 900) }}
+            onClick={runReconciliation}
             className="rounded-lg px-3 py-1.5 text-xs font-medium bg-orange-500 text-white hover:bg-orange-400 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-            title={canReconcile ? 'Invoke run_reconciliation edge function' : 'Admin only'}
+            title={canReconcile ? 'Invoke run-reconciliation edge function' : 'Admin only'}
           >
             {busy === 'reconcile' ? 'Running…' : 'Run Reconciliation'}
           </button>
@@ -244,6 +263,12 @@ export function Report() {
           </button>
         </div>
       </div>
+
+      {runError && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-xs text-red-300">
+          Reconciliation failed: {runError}
+        </div>
+      )}
 
       {/* ── Summary cards ───────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
