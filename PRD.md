@@ -51,21 +51,21 @@ Both views read from the same underlying reconciliation results stored in Supaba
 ### Data Flow
 
 ```
-LlamaParse dispatch PDF
+Dispatch PDF in `dispatcher_reports` storage bucket
          ↓
-  extract_dispatch.py
-         ↓
-  Structured JSON (dispatch-schema.json)
-         ↓
-  Supabase Edge Function: dispatch_ingest
-  ─────────────────────────────────────
+  Supabase Edge Function: dispatch-extract   (CR-010)
+  ──────────────────────────────────────────
+  Reads: PDF via Supabase Storage
+  pdf-parse → deterministic text parser (no AI)
   Writes to:
-    dispatch_reports
+    dispatch_reports  (status='extracted', pdf_path)
     dispatch_jobs
     dispatch_foremen
     dispatch_operators
     dispatch_laborers
-    dispatch_equipment_assignments
+    dispatch_equipment_assignments  (includes alt_code)
+         ↓
+  Telematics ingestion populates:
     telematics_readings  (raw JDLink readings, one row per reading)
          ↓
   Supabase Edge Function: run_reconciliation
@@ -651,3 +651,23 @@ Replaced the cursive/script Caveat font used for the "Dispatch Board" header and
 **Files touched:** `src/views/MagnetBoard.tsx`, `src/index.css`
 
 **Reference:** `ARCHIVED/change-requests/CR-magnet-board-font.md`
+
+---
+
+### CR-010 — Dispatch PDF Extract Edge Function (2026-04-24)
+
+Replaced the LlamaParse + Mac-mini dispatch-extraction pipeline with a self-contained Supabase Edge Function that reads dispatch PDFs straight from the `dispatcher_reports` storage bucket and writes parsed jobs, foremen, and equipment assignments into the dispatch tables. The SNC Daily Schedule Report is a deterministic database export, so pure text extraction (`pdf-parse`) plus a rule-based parser is sufficient — no AI inference. This removes the external service dependency and makes the extraction pipeline portable to a clean SNC-owned Supabase project.
+
+**Shipped:**
+- Edge function `dispatch-extract` at `core/supabase/functions/dispatch-extract/` (index.ts + parser.ts) running on Deno/Supabase
+- `npm:pdf-parse@1.1.1` for PDF→text; no AI/LLM involvement
+- Deterministic parser handles the pdf-parse single-line layout: job headers (`NNNNN: NAME NNNNN: NAME` plus `(cont.)` continuations), resource lines (`HH:MM AM/PM HH:MM AM/PM [|__ …]`), concatenated equipment (`CODE + TYPEPREFIX,`) and personnel (`CODE + SURNAME, FIRST- ROLE`), the `Rentals` duplicate-block skip, trailing status columns (`AVAIL`/`DOWN`/`STAND`), and multi-line `Daily Location Notes`
+- Alt-code extraction: two/three-letter type prefix + equipment code (`LD 7707`, `EX 9833`, `AT-BK BK121`, `R4 R41072`) populated on `dispatch_equipment_assignments.alt_code` (ready for `reconciliation_results.alt_code`, which is written by the separate reconciliation step)
+- Idempotent upsert: dispatch_jobs preserved by (report_id, job_code) so reconciliation_results stay linked; child assignments (foremen/operators/laborers/equipment) wiped and re-inserted; jobs absent from the new parse are dropped
+- Two invocation modes: empty body scans the bucket and processes all PDFs, `{"filename": "X.pdf"}` targets one file; report date is always read from the PDF content, not the filename
+- Migration `003_dispatch_extract_schema.sql` adds `dispatch_reports.pdf_path`, `dispatch_equipment_assignments.alt_code`, `reconciliation_results.alt_code`, and extends the `dispatch_reports.status` CHECK constraint to include `extracted`
+- Verified end-to-end on the three PDFs currently in the bucket (`APR 17TH.pdf`, `APR 24TH.pdf`, `APR 25TH.pdf`): 30/30/5 jobs, 872/893/338 equipment rows, re-running produces identical counts
+
+**Files touched:** `core/supabase/functions/dispatch-extract/index.ts` (new), `core/supabase/functions/dispatch-extract/parser.ts` (new), `core/supabase/migrations/003_dispatch_extract_schema.sql` (new), `core/supabase/config.toml` (new)
+
+**Reference:** `ARCHIVED/change-requests/CR-010-dispatch-extract-edge-function.md`
