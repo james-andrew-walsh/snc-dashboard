@@ -671,3 +671,34 @@ Replaced the LlamaParse + Mac-mini dispatch-extraction pipeline with a self-cont
 **Files touched:** `core/supabase/functions/dispatch-extract/index.ts` (new), `core/supabase/functions/dispatch-extract/parser.ts` (new), `core/supabase/migrations/003_dispatch_extract_schema.sql` (new), `core/supabase/config.toml` (new)
 
 **Reference:** `ARCHIVED/change-requests/CR-010-dispatch-extract-edge-function.md`
+
+---
+
+### CR-012 — Comprehensive Reconciliation Display + Report View Overhaul (commit `577e249`, 2026-04-25)
+
+Bundled feature requests A3, A4, A6, A7, B1, B2, B3 from the April 23 meeting with a reconciliation status taxonomy overhaul.
+
+**Shipped:**
+- Edge function `run-reconciliation` now emits granular statuses: `dispatch-only`, `dispatched-not-billed`, `no-job-match`, `no-telematics` (replacing generic `skipped`)
+- `dispatched-not-billed` highlighted in amber — represents missing timecards, an actionable finding
+- Report view shows ALL rows by default (removed filter that hid skipped rows)
+- Multi-select checkbox dropdowns for jobs (A3) and foremen (A4) with search and "All" button
+- Variance threshold numeric input (A6 + A7)
+- Alt-code column displayed on each row (B1)
+- Dispatch notes shown as expandable row detail on click (B2)
+- `timecard_notes` column reserved (HCSS API does not expose notes in timecard detail endpoint) (B3)
+- 9 status filter chips with toggle on/off behavior
+- Two-row summary cards: actionable (Over, Under, OK, Idle, Dispatched-Not-Billed) and informational (Dispatch-Only, No Telematics, No Job Match, Billed-Not-Dispatched, Net Variance)
+- CSV export includes all new columns and statuses
+- Migration `025_add_notes_columns.sql` adds `dispatch_notes` and `timecard_notes` to `reconciliation_results`
+
+**Files touched:** `core/supabase/functions/run-reconciliation/index.ts`, `src/lib/types.ts`, `src/data/adapter.ts`, `src/views/Report.tsx`, migration
+
+**Reference:** `ARCHIVED/change-requests/CR-012-comprehensive-reconciliation-display.md`
+
+---
+
+### Post-CR-012 Fixes (commits `c53df6d`, `4a403b8`, `018eef6`, 2026-04-25)
+
+- Removed "Clear" button from multi-select dropdowns (only "All" button remains)
+- Default sort changed to variance descending (biggest overbilling at top on page load)
