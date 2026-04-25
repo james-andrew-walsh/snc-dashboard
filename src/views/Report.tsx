@@ -544,18 +544,9 @@ function MultiSelectDropdown({ label, options, selected, onChange, allLabel }: {
   }, [options, query])
 
   function toggle(value: string) {
-    if (allOn) {
-      // Transitioning from "all selected" — start with all options, then remove the toggled one
-      const next = new Set(options.map(o => o.value))
-      next.delete(value)
-      onChange(next)
-    } else {
-      const next = new Set(selected)
-      if (next.has(value)) next.delete(value); else next.add(value)
-      // If all options are now selected, reset to empty set (= "all" state)
-      if (next.size === options.length) onChange(new Set())
-      else onChange(next)
-    }
+    const next = new Set(selected)
+    if (next.has(value)) next.delete(value); else next.add(value)
+    onChange(next)
   }
 
   function selectAll() { onChange(new Set()) }
