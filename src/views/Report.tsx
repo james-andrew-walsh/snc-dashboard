@@ -544,13 +544,21 @@ function MultiSelectDropdown({ label, options, selected, onChange, allLabel }: {
   }, [options, query])
 
   function toggle(value: string) {
-    const next = new Set(selected)
-    if (next.has(value)) next.delete(value); else next.add(value)
-    onChange(next)
+    if (allOn) {
+      // Transitioning from "all selected" — start with all options, then remove the toggled one
+      const next = new Set(options.map(o => o.value))
+      next.delete(value)
+      onChange(next)
+    } else {
+      const next = new Set(selected)
+      if (next.has(value)) next.delete(value); else next.add(value)
+      // If all options are now selected, reset to empty set (= "all" state)
+      if (next.size === options.length) onChange(new Set())
+      else onChange(next)
+    }
   }
 
   function selectAll() { onChange(new Set()) }
-  function clearAll() { onChange(new Set()) }
 
   const triggerLabel = allOn ? allLabel : `${selected.size} selected`
 
@@ -581,7 +589,6 @@ function MultiSelectDropdown({ label, options, selected, onChange, allLabel }: {
             />
             <div className="flex gap-2 mt-2">
               <button onClick={selectAll} className="text-[10px] text-orange-300 hover:text-orange-200 cursor-pointer">All</button>
-              <button onClick={clearAll} className="text-[10px] text-slate-400 hover:text-slate-200 cursor-pointer">Clear</button>
               <span className="ml-auto text-[10px] text-slate-500">{options.length} options</span>
             </div>
           </div>
