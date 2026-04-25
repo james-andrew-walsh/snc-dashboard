@@ -65,6 +65,7 @@ interface DispatchJobRow {
   id: string;
   job_code: string;
   job_name: string;
+  daily_notes: string | null;
 }
 
 interface DispatchForemanRow {
@@ -90,6 +91,8 @@ interface ReconResultInsert {
   status: string;
   reading_count: number | null;
   notes: string | null;
+  dispatch_notes: string | null;
+  timecard_notes: string | null;
 }
 
 function schedHours(start: string | null, end: string | null): number | null {
@@ -113,7 +116,7 @@ async function reconcile(reportDate: string) {
 
   const { data: jobRows, error: jobErr } = await supa
     .from('dispatch_jobs')
-    .select('id, job_code, job_name')
+    .select('id, job_code, job_name, daily_notes')
     .eq('report_id', reportId);
   if (jobErr) throw new Error(`load dispatch_jobs failed: ${jobErr.message}`);
   const jobsById = new Map<string, DispatchJobRow>();
@@ -184,11 +187,12 @@ async function reconcile(reportDate: string) {
     const jobUuid = hcssJobByCode.get(job.job_code.trim()) ?? null;
 
     if (!jobUuid) {
-      // HCSS doesn't know about this job — mark everything skipped.
+      // HCSS doesn't know about this job (yard/admin codes like DOWN FOR
+      // REPAIRS, MUSTANG YARD).
       for (const eq of dispatchEquipment) {
         inserts.push(makeRow(reportId, job, eq, foremanIdByJobCode, {
           billed: null, actual: null, readingCount: null,
-          status: 'skipped', notes: 'no HeavyJob job match',
+          status: 'no-job-match', notes: 'no HeavyJob job match',
           provider: jdMachines.has(eq.equipment_code) ? 'JDLink' : null,
         }));
       }
@@ -242,9 +246,11 @@ async function reconcile(reportDate: string) {
       const provider = machine ? 'JDLink' : null;
 
       if (!machine) {
+        // Dispatched but no telematics provider. Billed hours may or may not
+        // be present; either way this is informational, not a finding.
         inserts.push(makeRow(reportId, job, eq, foremanIdByJobCode, {
           billed, actual: null, readingCount: null,
-          status: 'skipped', notes: 'no JD Link',
+          status: 'dispatch-only', notes: 'no JD Link',
           provider: null,
         }));
         continue;
@@ -265,10 +271,12 @@ async function reconcile(reportDate: string) {
       let variance: number | null = null;
 
       if (readingCount === 0) {
-        status = 'no-data';
+        status = 'no-telematics';
         notes = 'no JD Link readings';
       } else if (billed == null) {
-        status = 'skipped';
+        // Has telematics + dispatched, but never billed under this code on
+        // HeavyJob. Foreman may have forgotten or used the wrong code.
+        status = 'dispatched-not-billed';
         notes = 'no HeavyJob billed hours';
       } else if (actual === 0 && billed > 0) {
         status = 'idle';
@@ -313,6 +321,8 @@ async function reconcile(reportDate: string) {
         status: 'billed-not-dispatched',
         reading_count: null,
         notes: 'on HeavyJob timecard but not dispatched',
+        dispatch_notes: job.daily_notes,
+        timecard_notes: null,
       });
     }
   }
@@ -389,6 +399,11 @@ function makeRow(
     status: r.status,
     reading_count: r.readingCount,
     notes: r.notes,
+    dispatch_notes: job.daily_notes,
+    // HCSS timecard detail endpoint does not expose per-equipment or
+    // timecard-level notes in the current API surface. Reserved for future
+    // use; populate once HCSS exposes a notes field.
+    timecard_notes: null,
   };
 }
 

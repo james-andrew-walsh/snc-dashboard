@@ -1,4 +1,7 @@
-export type ReconStatus = 'ok' | 'over' | 'under' | 'no-data' | 'skipped' | 'billed-not-dispatched' | 'unknown'
+export type ReconStatus =
+  | 'ok' | 'over' | 'under' | 'idle'
+  | 'no-telematics' | 'dispatch-only' | 'dispatched-not-billed'
+  | 'no-job-match' | 'billed-not-dispatched' | 'unknown'
 
 export type EquipmentKind =
   | 'TRUCK' | 'LOADER' | 'EXCAVATOR' | 'RENTAL' | 'TRAILER'
@@ -45,6 +48,7 @@ export interface ReconciliationResult {
   foreman_code: string | null
   equipment_code: string
   description: string | null
+  alt_code: string | null
   kind: EquipmentKind | string
   provider: TelematicsProvider | string
   sched_hours: number | null
@@ -54,14 +58,20 @@ export interface ReconciliationResult {
   status: ReconStatus | string
   reading_count: number | null
   notes: string | null
+  dispatch_notes: string | null
+  timecard_notes: string | null
 }
 
 export interface DashboardSummary {
   total: number
-  flagged: number
-  passed: number
-  no_data: number
-  skipped: number
+  over: number
+  under: number
+  ok: number
+  idle: number
+  no_telematics: number
+  dispatch_only: number
+  dispatched_not_billed: number
+  no_job_match: number
   billed_not_dispatched: number
 }
 

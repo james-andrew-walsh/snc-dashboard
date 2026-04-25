@@ -12,7 +12,14 @@ import april17 from './april17.json'
 // PDT (Pacific Daylight Time) is UTC-7. The dashboard's report dates are in PDT.
 const PDT_OFFSET_HOURS = 7
 
-const seedSnapshot: ReconciliationSnapshot = april17 as unknown as ReconciliationSnapshot
+const rawSeed = april17 as unknown as Omit<ReconciliationSnapshot, 'summary'> & { summary?: unknown }
+const seedSnapshot: ReconciliationSnapshot = {
+  report: rawSeed.report,
+  jobs: rawSeed.jobs,
+  foremen: rawSeed.foremen,
+  equipment: rawSeed.equipment,
+  summary: computeSummary(rawSeed.equipment),
+}
 
 export function classifyStatus(
   billed: number | null,
@@ -28,10 +35,14 @@ export function classifyStatus(
 export function computeSummary(equipment: ReconciliationResult[]): ReconciliationSnapshot['summary'] {
   return {
     total: equipment.length,
-    flagged: equipment.filter(e => e.status === 'over' || e.status === 'under').length,
-    passed: equipment.filter(e => e.status === 'ok').length,
-    no_data: equipment.filter(e => e.status === 'no-data').length,
-    skipped: equipment.filter(e => e.status === 'skipped').length,
+    over: equipment.filter(e => e.status === 'over').length,
+    under: equipment.filter(e => e.status === 'under').length,
+    ok: equipment.filter(e => e.status === 'ok').length,
+    idle: equipment.filter(e => e.status === 'idle').length,
+    no_telematics: equipment.filter(e => e.status === 'no-telematics').length,
+    dispatch_only: equipment.filter(e => e.status === 'dispatch-only').length,
+    dispatched_not_billed: equipment.filter(e => e.status === 'dispatched-not-billed').length,
+    no_job_match: equipment.filter(e => e.status === 'no-job-match').length,
     billed_not_dispatched: equipment.filter(e => e.status === 'billed-not-dispatched').length,
   }
 }
@@ -77,7 +88,7 @@ export async function fetchSnapshot(reportDate: string): Promise<ReconciliationS
     jobs: [],
     foremen: [],
     equipment: [],
-    summary: { total: 0, flagged: 0, passed: 0, no_data: 0, skipped: 0, billed_not_dispatched: 0 },
+    summary: { total: 0, over: 0, under: 0, ok: 0, idle: 0, no_telematics: 0, dispatch_only: 0, dispatched_not_billed: 0, no_job_match: 0, billed_not_dispatched: 0 },
   }
 }
 
