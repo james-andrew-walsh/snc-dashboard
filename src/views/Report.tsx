@@ -550,7 +550,7 @@ function MultiSelectDropdown({ label, options, selected, onChange, allLabel }: {
   }
 
   function selectAll() { onChange(new Set()) }
-  function clearAll() { onChange(new Set(options.map(o => o.value))) }
+  function clearAll() { onChange(new Set()) }
 
   const triggerLabel = allOn ? allLabel : `${selected.size} selected`
 
